@@ -1,5 +1,4 @@
 import express from 'express';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { registerRoutes } from '../server/routes';
 import { connectToDatabase } from '../server/database/connection';
 
@@ -16,7 +15,7 @@ async function ensureInitialized() {
   isInitialized = true;
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(req: any, res: any) {
   await ensureInitialized();
   // Delegate to Express
   return (app as any)(req, res);

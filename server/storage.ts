@@ -1,38 +1,40 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
+import { 
+  type User, 
+  type InsertUser, 
+  type Student, 
+  type InsertStudent, 
+  type Feedback, 
+  type InsertFeedback, 
+  type PointTransaction
+} from "@shared/types";
 
 export interface IStorage {
+  // User methods
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Student methods
+  getStudents(): Promise<Student[]>;
+  getStudent(id: string): Promise<Student | undefined>;
+  createStudent(student: InsertStudent): Promise<Student>;
+  updateStudentPoints(studentId: string, points: number, reason: string): Promise<Student>;
+  
+  // Feedback methods
+  getFeedbacks(): Promise<Feedback[]>;
+  createFeedback(feedback: InsertFeedback): Promise<Feedback>;
+  updateFeedbackStatus(id: string, status: 'new' | 'reviewed'): Promise<Feedback>;
+  
+  // Point transaction methods
+  getPointTransactions(studentId?: string): Promise<PointTransaction[]>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+// Export the interface for use in other files
+export { IStorage };
 
-  constructor() {
-    this.users = new Map();
-  }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
-  }
+// Import MongoDB storage
+import { MongoStorage } from './storage/mongodb';
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
-  }
-}
-
-export const storage = new MemStorage();
+// Use MongoDB storage instead of MemStorage
+export const storage = new MongoStorage();

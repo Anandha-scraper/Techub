@@ -1,28 +1,75 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import StudentDashboard from "@/components/StudentDashboard";
 import FeedbackForm from "@/components/FeedbackForm";
-import ThemeToggle from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { useLocation } from "wouter";
 
 export default function StudentPortal() {
   const [, setLocation] = useLocation();
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   
-  // todo: remove mock functionality - replace with real data from backend
-  const studentData = {
-    name: 'Alice Johnson',
-    studentId: 'S001',
-    points: 850,
-    maxPoints: 1000,
-    history: [
-      { date: '2025-10-05', points: 50, reason: 'Excellent project presentation' },
-      { date: '2025-10-03', points: 30, reason: 'Active class participation' },
-      { date: '2025-10-01', points: 20, reason: 'Homework completed on time' },
-      { date: '2025-09-28', points: 40, reason: 'Outstanding quiz performance' },
-    ]
-  };
+  const [studentData, setStudentData] = useState<{ name: string; studentId: string; points: number; maxPoints?: number; history: Array<{ date: string; points: number; reason: string }> }>({ name: '', studentId: '', points: 0, maxPoints: 1000, history: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [oldPassword, setOldPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  
+  const [changing, setChanging] = useState(false);
+  const [changeError, setChangeError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const username = localStorage.getItem('username') || '';
+    if (!username) {
+      setLocation('/');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const readJsonSafe = async (res: Response) => {
+      const contentType = res.headers.get('content-type') || '';
+      const bodyText = await res.text();
+      if (!res.ok) {
+        const maybe = contentType.includes('application/json');
+        let msg = 'Request failed';
+        if (maybe) {
+          try { const j = JSON.parse(bodyText); msg = j?.message || msg; } catch {}
+        } else {
+          msg = bodyText || msg;
+        }
+        throw new Error(msg);
+      }
+      if (contentType.includes('application/json')) {
+        try { return JSON.parse(bodyText); } catch { return null; }
+      }
+      // Unexpected HTML or other content
+      throw new Error('Unexpected response from server');
+    };
+
+    const load = async () => {
+      try {
+        // Fetch student profile by studentId (username)
+        const sRes = await fetch(`/api/students/by-id/${encodeURIComponent(username)}`, { headers: { 'Accept': 'application/json' } });
+        const s = await readJsonSafe(sRes);
+        // Fetch point transactions
+        const tRes = await fetch(`/api/transactions?studentId=${encodeURIComponent(username)}`, { headers: { 'Accept': 'application/json' } });
+        let tJson: any[] = [];
+        try { tJson = await readJsonSafe(tRes); } catch { tJson = []; }
+        const history = Array.isArray(tJson) ? tJson.map((t: any) => ({ date: t.date, points: t.points, reason: t.reason })) : [];
+        setStudentData({ name: s.name, studentId: s.studentId, points: s.points, maxPoints: 1000, history });
+      } catch (e: any) {
+        const msg: string = typeof e?.message === 'string' ? e.message : 'Failed to load data';
+        setError(msg.includes('<!DOCTYPE') ? 'Failed to reach API. Is the server running?' : msg);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [setLocation]);
 
   const handleLogout = () => {
     localStorage.removeItem('userRole');
@@ -30,11 +77,22 @@ export default function StudentPortal() {
     setLocation('/');
   };
 
-  const handleFeedbackSubmit = (category: string, message: string) => {
-    // todo: remove mock functionality - replace with API call
-    console.log('Feedback submitted:', { category, message });
-    setFeedbackSubmitted(true);
-    setTimeout(() => setFeedbackSubmitted(false), 3000);
+  const handleFeedbackSubmit = async (category: string, message: string) => {
+    try {
+      const username = localStorage.getItem('username') || '';
+      const res = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId: username.toUpperCase(), studentName: studentData.name, category, message })
+      });
+      if (!res.ok) throw new Error('Failed to submit feedback');
+      setFeedbackSubmitted(true);
+      setTimeout(() => setFeedbackSubmitted(false), 3000);
+    } catch (e) {
+      console.error(e);
+      setFeedbackSubmitted(false);
+      setError('Failed to submit feedback');
+    }
   };
 
   return (
@@ -47,8 +105,11 @@ export default function StudentPortal() {
               <p className="text-sm text-muted-foreground">View your performance and submit feedback</p>
             </div>
             <div className="flex items-center gap-2">
-              <ThemeToggle />
-              <Button variant="outline" onClick={handleLogout} data-testid="button-logout">
+              <Button variant="outline" onClick={() => { setSettingsOpen(true); setChangeError(null); setOldPassword(""); setNewPassword(""); }} aria-label="Settings" title="Change password">
+                <Settings className="w-4 h-4 mr-2" />
+                Settings
+              </Button>
+              <Button variant="outline" className="hover:bg-red-600 hover:text-white hover:border-red-600" onClick={handleLogout} data-testid="button-logout">
                 <LogOut className="w-4 h-4 mr-2" />
                 Logout
               </Button>
@@ -58,6 +119,12 @@ export default function StudentPortal() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {error && (
+          <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">{error}</div>
+        )}
+        {loading && (
+          <div className="text-sm text-muted-foreground">Loading…</div>
+        )}
         <div className="max-w-4xl mx-auto space-y-6">
           <StudentDashboard
             studentName={studentData.name}
@@ -76,6 +143,53 @@ export default function StudentPortal() {
           )}
         </div>
       </main>
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>Update your student password for the current account.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">Student ID</div>
+              <div className="text-sm font-mono">{studentData.studentId || '-'}</div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">Current Password</div>
+              <PasswordInput value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} placeholder="Enter current password" />
+            </div>
+            <div className="space-y-2">
+              <div className="text-xs text-muted-foreground">New Password</div>
+              <PasswordInput value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password (min 6 chars)" />
+            </div>
+            {changeError && (<div className="text-sm text-red-600" role="alert">{changeError}</div>)}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setSettingsOpen(false); setChangeError(null); setOldPassword(""); setNewPassword(""); }}>Cancel</Button>
+            <Button disabled={changing || newPassword.trim().length < 6 || oldPassword.trim().length === 0} onClick={async () => {
+              setChanging(true);
+              try {
+                const username = String(studentData.studentId || localStorage.getItem('username') || '').trim().toUpperCase();
+                const res = await fetch('/api/auth/change-password', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ username, oldPassword: oldPassword.trim(), newPassword: newPassword.trim(), role: 'student' })
+                });
+                if (!res.ok) {
+                  const text = await res.text();
+                  try { const j = JSON.parse(text); setChangeError(j?.message || 'Failed to change password'); } catch { setChangeError(text || 'Failed to change password'); }
+                  return;
+                }
+                setSettingsOpen(false);
+              } catch (e) {
+                setChangeError('Failed to change password');
+              } finally {
+                setChanging(false);
+              }
+            }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

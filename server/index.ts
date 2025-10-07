@@ -1,6 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { connectToDatabase } from "./database/connection";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 app.use(express.json());
@@ -37,14 +42,27 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Connect to MongoDB Atlas
+  try {
+    await connectToDatabase();
+  } catch (error) {
+    console.error('Failed to connect to MongoDB Atlas:', error);
+    process.exit(1);
+  }
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
+    const status = err?.status || err?.statusCode || 500;
+    const message = err?.message || "Internal Server Error";
+    try {
+      if (!res.headersSent) {
+        res.status(status).json({ message });
+      }
+    } catch {}
+    // Do not rethrow here; rethrowing causes dev middleware to return an HTML error page
+    // Log the error instead.
+    console.error('[API Error]', err);
   });
 
   // importantly only setup vite in development and after
@@ -61,11 +79,7 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen({
-    port,
-    host: "0.0.0.0",
-    reusePort: true,
-  }, () => {
+  server.listen(port, () => {
     log(`serving on port ${port}`);
   });
 })();

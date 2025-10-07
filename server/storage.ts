@@ -30,7 +30,7 @@ export interface IStorage {
 }
 
 // Export the interface for use in other files
-export { IStorage };
+// (Named export removed to avoid duplicate export errors)
 
 
 // Import MongoDB storage

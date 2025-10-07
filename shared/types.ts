@@ -4,7 +4,7 @@ export interface User {
   id: string;
   username: string;
   password: string;
-  role: 'admin' | 'student';
+  role: 'admin' | 'student' | 'master';
 }
 
 export interface Student {
@@ -38,7 +38,7 @@ export interface Feedback {
 export interface InsertUser {
   username: string;
   password: string;
-  role: 'admin' | 'student';
+  role: 'admin' | 'student' | 'master';
 }
 
 export interface InsertStudent {

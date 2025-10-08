@@ -2,6 +2,15 @@
   "version": 2,
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "dist/public",
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "nodejs",
+      "includeFiles": [
+        "server/**",
+        "shared/**"
+      ]
+    }
+  },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/[...path]" },
     { "source": "/(.*)", "destination": "/index.html" }

@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import  { type Express, type Request, type Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { AdminUser as AdminUserModel } from "./models/AdminUser";
@@ -26,7 +26,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return generated;
   };
   // Health check endpoint
-  app.get("/api/health", async (req, res) => {
+  app.get("/api/health", async (req: Request, res: Response) => {
     try {
       res.json({ 
         success: true, 
@@ -44,7 +44,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Authentication routes
-  app.post("/api/auth/login", async (req, res) => {
+  app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const { username, password, role } = req.body;
 
@@ -106,7 +106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin self-registration (requires master approval)
-  app.post('/api/admins/register', async (req, res) => {
+  app.post('/api/admins/register', async (req: Request, res: Response) => {
     try {
       const { username, password } = req.body as { username?: string; password?: string };
       if (!username || !password) {
@@ -129,7 +129,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Self-service: change password for admin or student (pre-login)
-  app.post('/api/auth/change-password', async (req, res) => {
+  app.post('/api/auth/change-password', async (req: Request, res: Response) => {
     try {
       const { username, oldPassword, newPassword, role } = req.body as { username?: string; oldPassword?: string; newPassword?: string; role?: 'admin' | 'student' };
       if (!username || !oldPassword || !newPassword || !role) {
@@ -159,7 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Student routes
   // Create student manually (admin)
-  app.post('/api/students', async (req, res) => {
+  app.post('/api/students', async (req: Request, res: Response) => {
     try {
       const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
       if (!adminId) return res.status(401).json({ message: 'Missing admin context' });
@@ -199,7 +199,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: msg });
     }
   });
-  app.get("/api/students", async (req, res) => {
+  app.get("/api/students", async (req: Request, res: Response) => {
     try {
       const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
       if (adminId) {
@@ -221,7 +221,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/students/:id", async (req, res) => {
+  app.get("/api/students/:id", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const student = await storage.getStudent(id);
@@ -237,7 +237,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Fetch student by studentId (username)
-  app.get('/api/students/by-id/:studentId', async (req, res) => {
+  app.get('/api/students/by-id/:studentId', async (req: Request, res: Response) => {
     try {
       const { studentId } = req.params;
       const doc = await StudentModel.findOne({ studentId: String(studentId).toUpperCase() }).lean();
@@ -256,7 +256,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/students/:id/points", async (req, res) => {
+  app.put("/api/students/:id/points", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { points, reason } = req.body;
@@ -283,7 +283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Increment points (add)
-  app.post('/api/students/:id/points/add', async (req, res) => {
+  app.post('/api/students/:id/points/add', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { amount, reason } = req.body as { amount: number; reason?: string };
@@ -311,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Decrement points (minus)
-  app.post('/api/students/:id/points/minus', async (req, res) => {
+  app.post('/api/students/:id/points/minus', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { amount, reason } = req.body as { amount: number; reason?: string };
@@ -343,7 +343,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin: update student password by studentId or mongo _id
-  app.patch('/api/students/:id/password', async (req, res) => {
+  app.patch('/api/students/:id/password', async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { password } = req.body as { password?: string };
@@ -384,7 +384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete student by studentId and cascade delete related user and records
-  app.delete('/api/students/:id', async (req, res) => {
+  app.delete('/api/students/:id', async (req: Request, res: Response) => {
     try {
       const { id } = req.params; // treat as studentId
       const studentIdUpper = String(id).toUpperCase();
@@ -437,7 +437,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Feedback routes
-  app.get("/api/feedback", async (req, res) => {
+  app.get("/api/feedback", async (req: Request, res: Response) => {
     try {
       const adminId = req.headers['x-admin-id'] as string;
       
@@ -470,7 +470,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get("/api/feedback/student/:studentId", async (req, res) => {
+  app.get("/api/feedback/student/:studentId", async (req: Request, res: Response) => {
     try {
       const { studentId } = req.params;
       const feedbacks = await storage.getFeedbacks();
@@ -481,7 +481,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/feedback", async (req, res) => {
+  app.post("/api/feedback", async (req: Request, res: Response) => {
     try {
       const { studentId, studentName, category, message } = req.body;
       
@@ -507,7 +507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/feedback/:id/status", async (req, res) => {
+  app.put("/api/feedback/:id/status", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const { status } = req.body;
@@ -523,7 +523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/feedback/:id/read", async (req, res) => {
+  app.put("/api/feedback/:id/read", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const feedback = await storage.markFeedbackAsRead(id);
@@ -533,7 +533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/feedback/:id", async (req, res) => {
+  app.delete("/api/feedback/:id", async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
       const adminId = req.headers['x-admin-id'] as string;
@@ -584,7 +584,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Point transaction routes
-  app.get("/api/transactions", async (req, res) => {
+  app.get("/api/transactions", async (req: Request, res: Response) => {
     try {
       const { studentId } = req.query;
       const transactions = await storage.getPointTransactions(studentId as string);
@@ -596,7 +596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Master admin routes
   // Simple master check via query/header for demo. In production, use JWT sessions.
-  app.get('/api/master/admins', async (req, res) => {
+  app.get('/api/master/admins', async (req: Request, res: Response) => {
     try {
       const key = req.headers['x-master-key'] || req.query.key;
       if (key !== 'master') {
@@ -609,7 +609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/master/admins/:id/approve', async (req, res) => {
+  app.post('/api/master/admins/:id/approve', async (req: Request, res: Response) => {
     try {
       const key = req.headers['x-master-key'] || req.query.key;
       if (key !== 'master') {
@@ -625,7 +625,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Master: preview cascade delete for an admin
-  app.get('/api/master/admins/:id/preview-delete', async (req, res) => {
+  app.get('/api/master/admins/:id/preview-delete', async (req: Request, res: Response) => {
     try {
       const key = req.headers['x-master-key'] || req.query.key;
       if (key !== 'master') {
@@ -645,7 +645,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Master: delete admin and cascade delete their students and related data
-  app.delete('/api/master/admins/:id', async (req, res) => {
+  app.delete('/api/master/admins/:id', async (req: Request, res: Response) => {
     try {
       const key = req.headers['x-master-key'] || req.query.key;
       if (key !== 'master') {
@@ -691,7 +691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Master: update admin (including master) username/password
-  app.patch('/api/master/users/admin/:id', async (req, res) => {
+  app.patch('/api/master/users/admin/:id', async (req: Request, res: Response) => {
     try {
       const key = req.headers['x-master-key'] || req.query.key;
       if (key !== 'master') {
@@ -726,7 +726,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Master stats: total number of students
-  app.get('/api/master/stats', async (req, res) => {
+  app.get('/api/master/stats', async (req: Request, res: Response) => {
     try {
       const key = req.headers['x-master-key'] || req.query.key;
       if (key !== 'master') {
@@ -740,7 +740,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Master: update student username/password
-  app.patch('/api/master/users/student/:id', async (req, res) => {
+  app.patch('/api/master/users/student/:id', async (req: Request, res: Response) => {
     try {
       const key = req.headers['x-master-key'] || req.query.key;
       if (key !== 'master') {
@@ -777,7 +777,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // File upload route: accepts xlsx/csv with columns:
   // Student-name, Register-Number, Section, Batch
   const upload = multer({ storage: multer.memoryStorage() });
-  app.post("/api/upload", upload.single('file'), async (req, res) => {
+  app.post("/api/upload", upload.single('file'), async (req: Request, res: Response) => {
     try {
       const anyReq = req as any;
       if (!anyReq.file) {
@@ -852,7 +852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Confirm upload: accept parsed rows and persist
-  app.post('/api/upload/confirm', async (req, res) => {
+  app.post('/api/upload/confirm', async (req: Request, res: Response) => {
     try {
       const { students } = req.body as { students?: Array<{ name: string; registerNumber: string; section?: string; batch?: string }> };
       if (!Array.isArray(students) || students.length === 0) {

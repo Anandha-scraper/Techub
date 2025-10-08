@@ -15,6 +15,10 @@ async function ensureInitialized(): Promise<void> {
 }
 
 export default async function handler(req: any, res: any) {
+  // Lightweight health check that doesn't require DB init
+  if (req.method === 'GET' && (req.url === '/api/health' || req.url?.startsWith('/api/health'))) {
+    return res.status(200).json({ success: true, message: 'API reachable', timestamp: new Date().toISOString() });
+  }
   try {
     await ensureInitialized();
   } catch (err: any) {
@@ -27,4 +31,9 @@ export default async function handler(req: any, res: any) {
   }
   return (app as any)(req, res);
 }
+
+// Ensure Node runtime (not Edge) for server libraries like mongoose
+export const config = {
+  runtime: 'nodejs20'
+};
 

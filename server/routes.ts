@@ -25,6 +25,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (generated.length < 6) generated = (generated + '123456').slice(0, 8);
     return generated;
   };
+  // Health check endpoint
+  app.get("/api/health", async (req, res) => {
+    try {
+      res.json({ 
+        success: true, 
+        message: "API is working",
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV || 'development'
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        success: false, 
+        message: "Health check failed",
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
+    }
+  });
+
   // Authentication routes
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -78,7 +96,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: { id: userDoc._id.toString(), username: userDoc.username, role: userDoc.role }
       });
     } catch (error) {
-      res.status(500).json({ message: "Internal server error" });
+      console.error('Login error:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Internal server error",
+        error: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      });
     }
   });
 

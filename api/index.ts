@@ -15,7 +15,16 @@ async function ensureInitialized(): Promise<void> {
 }
 
 export default async function handler(req: any, res: any) {
-  await ensureInitialized();
+  try {
+    await ensureInitialized();
+  } catch (err: any) {
+    const message = err?.message || 'Initialization error';
+    console.error('[api] init error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, message });
+    }
+    return;
+  }
   return (app as any)(req, res);
 }
 

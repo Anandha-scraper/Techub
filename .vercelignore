@@ -50,5 +50,5 @@ jspm_packages/
 # dotenv environment variables file
 .env
 
-# Server files (not needed for Vercel)
-server/
+# Server files are needed for Vercel API functions
+# server/

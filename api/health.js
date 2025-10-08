@@ -1,5 +1,5 @@
-// JavaScript health API
-export default function handler(req, res) {
+// CommonJS health API
+module.exports = function handler(req, res) {
   console.log('Health API called:', req.method, req.url);
   
   res.setHeader('Content-Type', 'application/json');
@@ -10,4 +10,4 @@ export default function handler(req, res) {
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV || 'development'
   });
-}
+};

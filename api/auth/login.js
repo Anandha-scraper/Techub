@@ -1,5 +1,5 @@
-// JavaScript login API - no TypeScript issues
-export default function handler(req, res) {
+// CommonJS login API
+module.exports = function handler(req, res) {
   console.log('Login API called:', req.method, req.url);
   
   // Always set JSON header
@@ -19,4 +19,4 @@ export default function handler(req, res) {
       method: req.method
     });
   }
-}
+};

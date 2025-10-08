@@ -2,18 +2,8 @@
   "version": 2,
   "builds": [
     { 
-      "src": "api/working.js", 
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 10
-      }
-    },
-    { 
-      "src": "api/auth/login.js", 
-      "use": "@vercel/node",
-      "config": {
-        "maxDuration": 10
-      }
+      "src": "api/simple.js", 
+      "use": "@vercel/node"
     },
     { 
       "src": "package.json", 
@@ -24,62 +14,14 @@
       } 
     }
   ],
-  "functions": {
-    "api/index.ts": {
-      "maxDuration": 30
-    }
-  },
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/simple.js"
     },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
-  },
-  "headers": [
-    {
-      "source": "/api/(.*)",
-      "headers": [
-        {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
-          "key": "Access-Control-Allow-Methods",
-          "value": "GET, POST, PUT, DELETE, OPTIONS"
-        },
-        {
-          "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type, Authorization, x-admin-id, x-master-key"
-        },
-        {
-          "key": "Access-Control-Max-Age",
-          "value": "86400"
-        }
-      ]
-    },
-    {
-      "source": "/(.*)",
-      "headers": [
-        {
-          "key": "X-Content-Type-Options",
-          "value": "nosniff"
-        },
-        {
-          "key": "X-Frame-Options",
-          "value": "DENY"
-        },
-        {
-          "key": "X-XSS-Protection",
-          "value": "1; mode=block"
-        }
-      ]
     }
   ]
 }

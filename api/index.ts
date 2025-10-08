@@ -34,6 +34,6 @@ export default async function handler(req: any, res: any) {
 
 // Ensure Node runtime (not Edge) for server libraries like mongoose
 export const config = {
-  runtime: 'nodejs20'
+  runtime: 'nodejs'
 };
 

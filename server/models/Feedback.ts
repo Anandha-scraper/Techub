@@ -7,6 +7,8 @@ export interface IFeedback extends Document {
   category: 'general' | 'question' | 'concern' | 'suggestion';
   message: string;
   status: 'new' | 'reviewed';
+  read: boolean;
+  adminId?: string; // Admin who should see this feedback (based on student ownership)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -38,6 +40,15 @@ const FeedbackSchema = new Schema<IFeedback>({
     type: String,
     enum: ['new', 'reviewed'],
     default: 'new'
+  },
+  read: {
+    type: Boolean,
+    default: false
+  },
+  adminId: {
+    type: String,
+    required: false,
+    index: true
   }
 }, {
   timestamps: true

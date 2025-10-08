@@ -165,9 +165,10 @@ export class MongoStorage implements IStorage {
   }
 
   // Feedback methods
-  async getFeedbacks(): Promise<Feedback[]> {
+  async getFeedbacks(adminId?: string): Promise<Feedback[]> {
     try {
-      const feedbacks = await FeedbackModel.find().sort({ createdAt: -1 }).lean();
+      const query = adminId ? { adminId } : {};
+      const feedbacks = await FeedbackModel.find(query).sort({ createdAt: -1 }).lean();
       return feedbacks.map(feedback => ({
         id: feedback._id.toString(),
         studentId: feedback.studentId,
@@ -175,6 +176,8 @@ export class MongoStorage implements IStorage {
         category: feedback.category,
         message: feedback.message,
         status: feedback.status,
+        read: feedback.read || false,
+        adminId: (feedback as any).adminId,
         date: feedback.createdAt.toISOString()
       }));
     } catch (error) {
@@ -195,6 +198,8 @@ export class MongoStorage implements IStorage {
         category: newFeedback.category,
         message: newFeedback.message,
         status: newFeedback.status,
+        read: newFeedback.read || false,
+        adminId: (newFeedback as any).adminId,
         date: newFeedback.createdAt.toISOString()
       };
     } catch (error) {
@@ -222,10 +227,51 @@ export class MongoStorage implements IStorage {
         category: feedback.category,
         message: feedback.message,
         status: feedback.status,
+        read: feedback.read || false,
+        adminId: (feedback as any).adminId,
         date: feedback.createdAt.toISOString()
       };
     } catch (error) {
       console.error('Error updating feedback status:', error);
+      throw error;
+    }
+  }
+
+  async markFeedbackAsRead(id: string): Promise<Feedback> {
+    try {
+      const feedback = await FeedbackModel.findByIdAndUpdate(
+        id, 
+        { read: true, status: 'reviewed' }, 
+        { new: true }
+      ).lean();
+      
+      if (!feedback) {
+        throw new Error('Feedback not found');
+      }
+      
+      return {
+        id: feedback._id.toString(),
+        studentId: feedback.studentId,
+        studentName: feedback.studentName,
+        category: feedback.category,
+        message: feedback.message,
+        status: feedback.status,
+        read: feedback.read || false,
+        adminId: (feedback as any).adminId,
+        date: feedback.createdAt.toISOString()
+      };
+    } catch (error) {
+      console.error('Error marking feedback as read:', error);
+      throw error;
+    }
+  }
+
+  async deleteFeedback(id: string): Promise<boolean> {
+    try {
+      const result = await FeedbackModel.findByIdAndDelete(id);
+      return !!result;
+    } catch (error) {
+      console.error('Error deleting feedback:', error);
       throw error;
     }
   }

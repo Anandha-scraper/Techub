@@ -416,10 +416,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Feedback routes
   app.get("/api/feedback", async (req, res) => {
     try {
-      const feedbacks = await storage.getFeedbacks();
-      res.json(feedbacks);
+      const adminId = req.headers['x-admin-id'] as string;
+      
+      if (!adminId) {
+        return res.status(401).json({ message: "Admin ID required" });
+      }
+
+      // Get feedbacks scoped to this admin
+      let feedbacks = await storage.getFeedbacks(adminId);
+      
+      // For backward compatibility, also get feedbacks from students owned by this admin
+      // that don't have adminId set yet
+      const allFeedbacks = await storage.getFeedbacks();
+      const adminStudents = await StudentModel.find({ createdBy: adminId }).select('studentId').lean();
+      const adminStudentIds = adminStudents.map(s => s.studentId);
+      
+      const legacyFeedbacks = allFeedbacks.filter(f => 
+        !f.adminId && adminStudentIds.includes(f.studentId)
+      );
+      
+      // Combine and deduplicate
+      const allAdminFeedbacks = [...feedbacks, ...legacyFeedbacks];
+      const uniqueFeedbacks = allAdminFeedbacks.filter((feedback, index, self) => 
+        index === self.findIndex(f => f.id === feedback.id)
+      );
+      
+      res.json(uniqueFeedbacks);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch feedback" });
+    }
+  });
+
+  app.get("/api/feedback/student/:studentId", async (req, res) => {
+    try {
+      const { studentId } = req.params;
+      const feedbacks = await storage.getFeedbacks();
+      const studentFeedbacks = feedbacks.filter(f => f.studentId === studentId);
+      res.json(studentFeedbacks);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch student feedback" });
     }
   });
 
@@ -431,11 +466,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "All feedback fields are required" });
       }
 
+      // Find the admin who owns this student to set the adminId
+      const student = await StudentModel.findOne({ studentId: studentId.toUpperCase() }).lean();
+      const adminId = student ? (student as any).createdBy : undefined;
+
       const feedback = await storage.createFeedback({
         studentId,
         studentName,
         category,
-        message
+        message,
+        adminId
       });
       
       res.json(feedback);
@@ -457,6 +497,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(feedback);
     } catch (error) {
       res.status(500).json({ message: "Failed to update feedback status" });
+    }
+  });
+
+  app.put("/api/feedback/:id/read", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const feedback = await storage.markFeedbackAsRead(id);
+      res.json(feedback);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to mark feedback as read" });
+    }
+  });
+
+  app.delete("/api/feedback/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const adminId = req.headers['x-admin-id'] as string;
+      
+      if (!adminId) {
+        return res.status(401).json({ message: "Admin ID required" });
+      }
+
+      // For backward compatibility, first try to find feedback by adminId
+      // If not found, check if the feedback belongs to a student owned by this admin
+      let feedback = null;
+      
+      // First check feedbacks scoped to this admin
+      const adminFeedbacks = await storage.getFeedbacks(adminId);
+      feedback = adminFeedbacks.find(f => f.id === id);
+      
+      // If not found, check if the feedback belongs to a student owned by this admin
+      if (!feedback) {
+        const allFeedbacks = await storage.getFeedbacks(); // Get all feedbacks
+        const targetFeedback = allFeedbacks.find(f => f.id === id);
+        
+        if (targetFeedback) {
+          // Check if the student belongs to this admin
+          const student = await StudentModel.findOne({ 
+            studentId: targetFeedback.studentId, 
+            createdBy: adminId 
+          }).lean();
+          
+          if (student) {
+            feedback = targetFeedback;
+          }
+        }
+      }
+      
+      if (!feedback) {
+        return res.status(404).json({ message: "Feedback not found or access denied" });
+      }
+
+      const deleted = await storage.deleteFeedback(id);
+      if (deleted) {
+        res.json({ message: "Feedback deleted successfully" });
+      } else {
+        res.status(404).json({ message: "Feedback not found" });
+      }
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete feedback" });
     }
   });
 

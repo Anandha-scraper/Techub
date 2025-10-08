@@ -1,7 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { MessageSquare, Clock, User, Check, Trash2 } from "lucide-react";
+import { MessageSquare, Clock, User, CheckCircle, Eye } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Feedback {
@@ -15,11 +14,8 @@ interface Feedback {
   read: boolean;
 }
 
-interface FeedbackListProps {
+interface StudentFeedbackListProps {
   feedbacks: Feedback[];
-  onMarkAsRead?: (feedbackId: string) => void;
-  onDelete?: (feedbackId: string) => void;
-  showDeleteButton?: boolean;
 }
 
 const categoryColors: Record<string, string> = {
@@ -29,25 +25,25 @@ const categoryColors: Record<string, string> = {
   suggestion: 'bg-chart-2/10 text-chart-2',
 };
 
-export default function FeedbackList({ feedbacks, onMarkAsRead, onDelete, showDeleteButton = false }: FeedbackListProps) {
+export default function StudentFeedbackList({ feedbacks }: StudentFeedbackListProps) {
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MessageSquare className="w-5 h-5 text-primary" />
-          Student Feedback
+          My Feedback Status
         </CardTitle>
         <CardDescription>
-          {feedbacks.length} feedback{feedbacks.length !== 1 ? 's' : ''} received
+          Track the status of your submitted feedback
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <ScrollArea className="h-[500px] pr-4">
+        <ScrollArea className="h-[400px] pr-4">
           <div className="space-y-4">
             {feedbacks.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No feedback yet</p>
+                <p>No feedback submitted yet</p>
               </div>
             ) : (
               feedbacks.map((feedback) => (
@@ -79,8 +75,14 @@ export default function FeedbackList({ feedbacks, onMarkAsRead, onDelete, showDe
                               New
                             </Badge>
                           )}
+                          {feedback.status === 'reviewed' && (
+                            <Badge variant="outline" className="border-blue-500 text-blue-500">
+                              Reviewed
+                            </Badge>
+                          )}
                           {feedback.read && (
                             <Badge variant="outline" className="border-green-500 text-green-500">
+                              <CheckCircle className="w-3 h-3 mr-1" />
                               Read
                             </Badge>
                           )}
@@ -91,35 +93,9 @@ export default function FeedbackList({ feedbacks, onMarkAsRead, onDelete, showDe
                         {feedback.message}
                       </p>
                       
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <Clock className="w-3 h-3" />
-                          <span data-testid={`date-${feedback.id}`}>{feedback.date}</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {!feedback.read && onMarkAsRead && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onMarkAsRead(feedback.id)}
-                              className="h-7 px-2 text-xs"
-                            >
-                              <Check className="w-3 h-3 mr-1" />
-                              Mark as Read
-                            </Button>
-                          )}
-                          {showDeleteButton && onDelete && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => onDelete(feedback.id)}
-                              className="h-7 px-2 text-xs text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                            >
-                              <Trash2 className="w-3 h-3 mr-1" />
-                              Delete
-                            </Button>
-                          )}
-                        </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="w-3 h-3" />
+                        <span data-testid={`date-${feedback.id}`}>{feedback.date}</span>
                       </div>
                     </div>
                   </CardContent>

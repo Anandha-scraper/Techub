@@ -21,9 +21,11 @@ export interface IStorage {
   updateStudentPoints(studentId: string, points: number, reason: string): Promise<Student>;
   
   // Feedback methods
-  getFeedbacks(): Promise<Feedback[]>;
+  getFeedbacks(adminId?: string): Promise<Feedback[]>;
   createFeedback(feedback: InsertFeedback): Promise<Feedback>;
   updateFeedbackStatus(id: string, status: 'new' | 'reviewed'): Promise<Feedback>;
+  markFeedbackAsRead(id: string): Promise<Feedback>;
+  deleteFeedback(id: string): Promise<boolean>;
   
   // Point transaction methods
   getPointTransactions(studentId?: string): Promise<PointTransaction[]>;

@@ -23,6 +23,7 @@ export default function AdminDashboard() {
     message: string;
     date: string;
     status: 'new' | 'reviewed';
+    read: boolean;
   };
 
   const [students, setStudents] = useState<Student[]>([]);
@@ -60,7 +61,9 @@ export default function AdminDashboard() {
         if (isMounted) setStudents(data);
       });
 
-    const fetchFeedbacks = fetch('/api/feedback')
+    const fetchFeedbacks = fetch('/api/feedback', {
+      headers: { 'x-admin-id': localStorage.getItem('userId') || '' }
+    })
       .then(async (res) => {
         if (!res.ok) throw new Error('Failed to fetch feedback');
         return res.json();
@@ -177,6 +180,51 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleMarkAsRead = async (feedbackId: string) => {
+    try {
+      const res = await fetch(`/api/feedback/${feedbackId}/read`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (!res.ok) throw new Error('Failed to mark feedback as read');
+      
+      // Update the feedback in the local state
+      setFeedbacks(prev => prev.map(f => 
+        f.id === feedbackId ? { ...f, read: true, status: 'reviewed' } : f
+      ));
+    } catch (e) {
+      console.error(e);
+      setError('Failed to mark feedback as read');
+    }
+  };
+
+  const handleDeleteFeedback = async (feedbackId: string) => {
+    if (!confirm('Are you sure you want to delete this feedback? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/feedback/${feedbackId}`, {
+        method: 'DELETE',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-id': localStorage.getItem('userId') || ''
+        }
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to delete feedback');
+      }
+      
+      // Remove the feedback from the local state
+      setFeedbacks(prev => prev.filter(f => f.id !== feedbackId));
+    } catch (e) {
+      console.error(e);
+      setError('Failed to delete feedback');
+    }
+  };
+
   const totalStudents = students.length;
   const averagePoints = students.length > 0 ? (students.reduce((sum, s) => sum + s.points, 0) / students.length) : 0;
   const pendingFeedback = feedbacks.filter(f => f.status === 'new').length;
@@ -255,7 +303,12 @@ export default function AdminDashboard() {
           </TabsContent>
 
           <TabsContent value="feedback">
-            <FeedbackList feedbacks={feedbacks} />
+            <FeedbackList 
+              feedbacks={feedbacks} 
+              onMarkAsRead={handleMarkAsRead} 
+              onDelete={handleDeleteFeedback}
+              showDeleteButton={true}
+            />
           </TabsContent>
         </Tabs>
       </main>

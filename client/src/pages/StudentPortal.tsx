@@ -1,18 +1,22 @@
 import { useEffect, useState } from "react";
 import StudentDashboard from "@/components/StudentDashboard";
 import FeedbackForm from "@/components/FeedbackForm";
+import StudentFeedbackList from "@/components/StudentFeedbackList";
 import { Button } from "@/components/ui/button";
 import { LogOut, Settings } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useLocation } from "wouter";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MessageSquare, BarChart3 } from "lucide-react";
 
 export default function StudentPortal() {
   const [, setLocation] = useLocation();
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   
   const [studentData, setStudentData] = useState<{ name: string; studentId: string; points: number; maxPoints?: number; history: Array<{ date: string; points: number; reason: string }> }>({ name: '', studentId: '', points: 0, maxPoints: 1000, history: [] });
+  const [feedbacks, setFeedbacks] = useState<Array<{ id: string; studentName: string; studentId: string; category: string; message: string; date: string; status: 'new' | 'reviewed'; read: boolean }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -61,6 +65,12 @@ export default function StudentPortal() {
         try { tJson = await readJsonSafe(tRes); } catch { tJson = []; }
         const history = Array.isArray(tJson) ? tJson.map((t: any) => ({ date: t.date, points: t.points, reason: t.reason })) : [];
         setStudentData({ name: s.name, studentId: s.studentId, points: s.points, maxPoints: 1000, history });
+        
+        // Fetch student feedback
+        const fRes = await fetch(`/api/feedback/student/${encodeURIComponent(username.toUpperCase())}`, { headers: { 'Accept': 'application/json' } });
+        let fJson: any[] = [];
+        try { fJson = await readJsonSafe(fRes); } catch { fJson = []; }
+        setFeedbacks(Array.isArray(fJson) ? fJson : []);
       } catch (e: any) {
         const msg: string = typeof e?.message === 'string' ? e.message : 'Failed to load data';
         setError(msg.includes('<!DOCTYPE') ? 'Failed to reach API. Is the server running?' : msg);
@@ -88,6 +98,13 @@ export default function StudentPortal() {
       if (!res.ok) throw new Error('Failed to submit feedback');
       setFeedbackSubmitted(true);
       setTimeout(() => setFeedbackSubmitted(false), 3000);
+      
+      // Refresh feedback list
+      const fRes = await fetch(`/api/feedback/student/${encodeURIComponent(username.toUpperCase())}`, { headers: { 'Accept': 'application/json' } });
+      if (fRes.ok) {
+        const fJson = await fRes.json();
+        setFeedbacks(Array.isArray(fJson) ? fJson : []);
+      }
     } catch (e) {
       console.error(e);
       setFeedbackSubmitted(false);
@@ -126,15 +143,33 @@ export default function StudentPortal() {
           <div className="text-sm text-muted-foreground">Loading…</div>
         )}
         <div className="max-w-4xl mx-auto space-y-6">
-          <StudentDashboard
-            studentName={studentData.name}
-            studentId={studentData.studentId}
-            points={studentData.points}
-            maxPoints={studentData.maxPoints}
-            history={studentData.history}
-          />
+          <Tabs defaultValue="dashboard" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="dashboard">
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger value="feedback">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Feedback
+              </TabsTrigger>
+            </TabsList>
 
-          <FeedbackForm onSubmit={handleFeedbackSubmit} />
+            <TabsContent value="dashboard">
+              <StudentDashboard
+                studentName={studentData.name}
+                studentId={studentData.studentId}
+                points={studentData.points}
+                maxPoints={studentData.maxPoints}
+                history={studentData.history}
+              />
+            </TabsContent>
+
+            <TabsContent value="feedback" className="space-y-6">
+              <FeedbackForm onSubmit={handleFeedbackSubmit} />
+              <StudentFeedbackList feedbacks={feedbacks} />
+            </TabsContent>
+          </Tabs>
 
           {feedbackSubmitted && (
             <div className="fixed bottom-4 right-4 bg-chart-2 text-white px-4 py-2 rounded-md shadow-lg" data-testid="toast-success">

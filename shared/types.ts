@@ -32,6 +32,8 @@ export interface Feedback {
   category: 'general' | 'question' | 'concern' | 'suggestion';
   message: string;
   status: 'new' | 'reviewed';
+  read: boolean;
+  adminId?: string;
   date: string;
 }
 
@@ -54,6 +56,7 @@ export interface InsertFeedback {
   studentName: string;
   category: 'general' | 'question' | 'concern' | 'suggestion';
   message: string;
+  adminId?: string;
 }
 
 export interface UpdatePoints {

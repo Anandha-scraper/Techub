@@ -2,17 +2,17 @@
   "version": 2,
   "builds": [
     { 
-      "src": "api/minimal.ts", 
+      "src": "api/working.js", 
       "use": "@vercel/node",
       "config": {
         "maxDuration": 10
       }
     },
     { 
-      "src": "api/index.ts", 
+      "src": "api/auth/login.js", 
       "use": "@vercel/node",
       "config": {
-        "maxDuration": 30
+        "maxDuration": 10
       }
     },
     { 

@@ -20,11 +20,17 @@ export const connectToDatabase = async (): Promise<void> => {
 
   try {
     console.log('Attempting to connect to MongoDB...');
+    
+    // Optimized connection for serverless
     await mongoose.connect(MONGODB_URI, { 
       dbName: DB_NAME,
-      serverSelectionTimeoutMS: 10000, // 10 seconds timeout
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 5000, // 5 seconds timeout for serverless
+      connectTimeoutMS: 5000,
+      maxPoolSize: 1, // Maintain only 1 connection for serverless
+      minPoolSize: 0, // Allow connection to close when idle
+      maxIdleTimeMS: 10000, // Close connections after 10 seconds of inactivity
     });
+    
     isConnected = true;
     console.log('Connected to MongoDB Atlas successfully');
   } catch (error) {

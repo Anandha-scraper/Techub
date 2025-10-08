@@ -1,9 +1,10 @@
 import express, { type Express } from "express";
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
-import viteConfig from "../vite.config";
+// Avoid importing vite.config.ts directly in CJS context; let Vite resolve it.
 import { nanoid } from "nanoid";
 
 const viteLogger = createLogger();
@@ -27,8 +28,7 @@ export async function setupVite(app: Express, server: Server) {
   };
 
   const vite = await createViteServer({
-    ...viteConfig,
-    configFile: false,
+    // Let Vite load the config file itself
     customLogger: {
       ...viteLogger,
       error: (msg, options) => {
@@ -45,8 +45,9 @@ export async function setupVite(app: Express, server: Server) {
     const url = req.originalUrl;
 
     try {
+      const moduleDir = path.dirname(fileURLToPath(import.meta.url));
       const clientTemplate = path.resolve(
-        import.meta.dirname,
+        moduleDir,
         "..",
         "client",
         "index.html",
@@ -68,7 +69,8 @@ export async function setupVite(app: Express, server: Server) {
 }
 
 export function serveStatic(app: Express) {
-  const distPath = path.resolve(import.meta.dirname, "public");
+  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+  const distPath = path.resolve(moduleDir, "..", "dist", "public");
 
   if (!fs.existsSync(distPath)) {
     throw new Error(

@@ -9,6 +9,13 @@
       }
     },
     { 
+      "src": "api/test.ts", 
+      "use": "@vercel/node",
+      "config": {
+        "maxDuration": 10
+      }
+    },
+    { 
       "src": "package.json", 
       "use": "@vercel/static-build", 
       "config": { 

@@ -1,13 +1,56 @@
 import express from 'express';
-import { connectToDatabase } from '../server/database/connection.js';
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
-// Import models directly to avoid path issues
-import { AdminUser } from '../server/models/AdminUser.js';
-import { StudentUser } from '../server/models/StudentUser.js';
-import { Student } from '../server/models/Student.js';
-import { Feedback } from '../server/models/Feedback.js';
-import { PointTransaction } from '../server/models/PointTransaction.js';
+// Self-contained models to avoid import issues
+const AdminUserSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 50 },
+  password: { type: String, required: true, minlength: 6 },
+  role: { type: String, enum: ['master', 'admin'], required: true },
+  approved: { type: Boolean, default: function (this: any) { return this.role === 'admin' ? false : true; } },
+  lastLogin: { type: Date }
+}, { timestamps: true });
+
+const StudentUserSchema = new mongoose.Schema({
+  username: { type: String, required: true, unique: true, trim: true, uppercase: true },
+  password: { type: String, required: true, minlength: 6 },
+  role: { type: String, enum: ['student'], default: 'student' }
+}, { timestamps: true });
+
+// Hash password before saving
+AdminUserSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  try {
+    const salt = await bcrypt.genSalt(12);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
+StudentUserSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  try {
+    const salt = await bcrypt.genSalt(12);
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error as Error);
+  }
+});
+
+// Compare password methods
+AdminUserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+StudentUserSchema.methods.comparePassword = async function(candidatePassword: string): Promise<boolean> {
+  return bcrypt.compare(candidatePassword, this.password);
+};
+
+const AdminUser = mongoose.model('AdminUser', AdminUserSchema);
+const StudentUser = mongoose.model('StudentUser', StudentUserSchema);
 
 const app = express();
 app.use(express.json());
@@ -15,6 +58,36 @@ app.use(express.urlencoded({ extended: false }));
 
 let isInitialized = false;
 let initializationError: Error | null = null;
+
+async function connectToDatabase(): Promise<void> {
+  const MONGODB_URI = process.env.MONGODB_URI;
+  const DB_NAME = process.env.DB_NAME || 'techub';
+  
+  if (!MONGODB_URI) {
+    const error = new Error('MONGODB_URI environment variable is not set');
+    console.error('Database connection failed:', error.message);
+    throw error;
+  }
+  
+  try {
+    console.log('Attempting to connect to MongoDB...');
+    
+    // Optimized connection for serverless
+    await mongoose.connect(MONGODB_URI, { 
+      dbName: DB_NAME,
+      serverSelectionTimeoutMS: 5000, // 5 seconds timeout for serverless
+      connectTimeoutMS: 5000,
+      maxPoolSize: 1, // Maintain only 1 connection for serverless
+      minPoolSize: 0, // Allow connection to close when idle
+      maxIdleTimeMS: 10000, // Close connections after 10 seconds of inactivity
+    });
+    
+    console.log('Connected to MongoDB Atlas successfully');
+  } catch (error) {
+    console.error('Error connecting to MongoDB Atlas:', error);
+    throw error;
+  }
+}
 
 async function ensureInitialized() {
   if (isInitialized) return;
@@ -135,4 +208,3 @@ export default async function handler(req: any, res: any) {
     });
   }
 }
-

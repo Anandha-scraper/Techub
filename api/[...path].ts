@@ -27,8 +27,18 @@ app.use(async (req, res, next) => {
   }
 });
 
-// Register all routes from the main server
-await registerRoutes(app, false);
+// Initialize routes lazily on first request
+let routesInitialized = false;
+let routesPromise: Promise<void> | null = null;
+
+const initializeRoutes = async () => {
+  if (routesInitialized) return;
+  if (routesPromise) return routesPromise;
+  
+  routesPromise = registerRoutes(app, false);
+  await routesPromise;
+  routesInitialized = true;
+};
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
@@ -42,6 +52,8 @@ process.on('uncaughtException', (error) => {
 const handler = serverless(app);
 
 export default async function(req: any, res: any) {
+  // Ensure routes are initialized before handling request
+  await initializeRoutes();
   return handler(req, res);
 }
 

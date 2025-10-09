@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "build": "vite build",
-    "vercel-build": "node vercel-build.js",
+    "netlify-build": "node netlify-build.js",
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
     "preview": "vite preview --host"
@@ -51,22 +51,22 @@
     "react-dom": "^19.2.0",
     "serverless-http": "^4.0.0",
     "tailwind-merge": "^3.3.1",
+    "vite": "^5.4.20",
     "wouter": "^3.7.1",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "@vitejs/plugin-react": "^4.7.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.47",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@tailwindcss/typography": "^0.5.19",
     "@types/express": "^5.0.3",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",
-    "@vitejs/plugin-react": "^4.7.0",
-    "autoprefixer": "^10.4.20",
     "cross-env": "^7.0.3",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.17",
-    "tailwindcss-animate": "^1.0.7",
     "tsx": "^4.20.6",
-    "typescript": "5.6.3",
-    "vite": "^5.4.20"
+    "typescript": "5.6.3"
   }
 }

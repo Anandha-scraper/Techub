@@ -6,14 +6,14 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-console.log('Starting Vercel build process...');
+console.log('Starting Netlify build process...');
 
 // 1. Build the frontend
 console.log('Building frontend...');
 execSync('npm run build', { stdio: 'inherit' });
 
-// 2. Ensure server files are copied to the right location for Vercel
-console.log('Preparing server files for Vercel...');
+// 2. Copy server files to the root for Netlify functions
+console.log('Preparing server files for Netlify...');
 
 const serverDir = path.join(__dirname, 'server');
 const distServerDir = path.join(__dirname, 'dist', 'server');
@@ -53,4 +53,4 @@ if (fs.existsSync(sharedDir)) {
   copyDir(sharedDir, distSharedDir);
 }
 
-console.log('Vercel build completed successfully!');
+console.log('Netlify build completed successfully!');

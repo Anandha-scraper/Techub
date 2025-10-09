@@ -1,6 +1,4 @@
 import express from "express";
-import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
 import serverless from "serverless-http";
 
 // Simple in-memory storage for demo purposes
@@ -98,5 +96,5 @@ export default async function(req: any, res: any) {
 export const config = {
   runtime: 'nodejs',
   memory: 1024,
-  maxDuration: 10
+  maxDuration: 30
 };

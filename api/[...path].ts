@@ -8,11 +8,30 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
 let isInitialized = false;
+let initializationPromise: Promise<void> | null = null;
+
 async function ensureInitialized(): Promise<void> {
   if (isInitialized) return;
-  await connectToDatabase();
-  await registerRoutes(app);
-  isInitialized = true;
+  
+  // Prevent multiple concurrent initializations
+  if (initializationPromise) {
+    return initializationPromise;
+  }
+  
+  initializationPromise = (async () => {
+    try {
+      await connectToDatabase();
+      // Register routes without creating a server
+      await registerRoutes(app, false);
+      isInitialized = true;
+    } catch (error) {
+      isInitialized = false;
+      initializationPromise = null;
+      throw error;
+    }
+  })();
+  
+  return initializationPromise;
 }
 
 const handler = serverless(app);
@@ -42,4 +61,13 @@ export const config = {
   memory: 1024,
   maxDuration: 10
 };
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+});
 

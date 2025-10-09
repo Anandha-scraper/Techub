@@ -24,13 +24,15 @@ export const connectToDatabase = async (): Promise<void> => {
     // Optimized connection for serverless
     await mongoose.connect(MONGODB_URI, { 
       dbName: DB_NAME,
-      serverSelectionTimeoutMS: 10000, // Increased timeout for serverless
-      connectTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 5000, // Reduced timeout for faster failure detection
+      connectTimeoutMS: 5000,
       maxPoolSize: 1, // Maintain only 1 connection for serverless
       minPoolSize: 0, // Allow connection to close when idle
-      maxIdleTimeMS: 30000, // Close connections after 30 seconds of inactivity
+      maxIdleTimeMS: 10000, // Close connections after 10 seconds of inactivity
       bufferCommands: false, // Disable mongoose buffering for serverless
       bufferMaxEntries: 0, // Disable mongoose buffering
+      retryWrites: true,
+      retryReads: true,
     });
     
     isConnected = true;

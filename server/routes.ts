@@ -1,5 +1,5 @@
-import  { type Express, type Request, type Response } from "express";
-import { createServer, type Server } from "http";
+import { type Express, type Request, type Response } from "express";
+import { createServer as createHttpServer, type Server } from "http";
 import { storage } from "./storage";
 import { AdminUser as AdminUserModel } from "./models/AdminUser";
 import { StudentUser as StudentUserModel } from "./models/StudentUser";
@@ -10,7 +10,7 @@ import { PointTransaction as PointTransactionModel } from "./models/PointTransac
 import multer from "multer";
 import * as XLSX from "xlsx";
 
-export async function registerRoutes(app: Express): Promise<Server> {
+export async function registerRoutes(app: Express, shouldCreateServer: boolean = true): Promise<Server | void> {
   const generatePassword = (name: string, batch: string | undefined | null): string => {
     const toBatchDigits = (batchStr: string): string => {
       const match = String(batchStr || '').match(/(\d{4})\s*[-–]\s*(\d{4})/);
@@ -914,6 +914,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  const httpServer = createServer(app);
-  return httpServer;
+  if (shouldCreateServer) {
+    const httpServer = createHttpServer(app);
+    return httpServer;
+  }
+  // For serverless mode, just return void
 }

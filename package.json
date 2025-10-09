@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {
     "build": "vite build",
-    "vercel-build": "vite build",
+    "vercel-build": "node vercel-build.js",
     "dev": "cross-env NODE_ENV=development tsx server/index.ts",
     "start": "cross-env NODE_ENV=production tsx server/index.ts",
     "preview": "vite preview --host"

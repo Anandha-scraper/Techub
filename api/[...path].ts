@@ -1,7 +1,7 @@
 import express from "express";
 import serverless from "serverless-http";
-import { connectToDatabase } from "@server/database/connection";
-import { registerRoutes } from "@server/routes";
+import { connectToDatabase } from "server/database/connection";
+import { registerRoutes } from "server/routes";
 
 // Global connection state
 let isConnected = false;

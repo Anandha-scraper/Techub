@@ -25,6 +25,24 @@ export interface PointTransaction {
   date: string;
 }
 
+// Attendance
+export type AttendanceStatus = 'present' | 'absent';
+
+export interface AttendanceRecord {
+  id: string;
+  studentId: string;
+  date: string; // ISO date string (YYYY-MM-DD)
+  status: AttendanceStatus;
+  adminId?: string;
+}
+
+export interface InsertAttendanceRecord {
+  studentId: string;
+  date: string; // ISO date (YYYY-MM-DD)
+  status: AttendanceStatus;
+  adminId?: string;
+}
+
 export interface Feedback {
   id: string;
   studentId: string;

@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { type Server } from "http";
+import { exec } from "child_process";
 import { setupVite, serveStatic, log } from "./vite";
 import { connectToDatabase } from "./database/connection";
 import dotenv from "dotenv";
@@ -50,7 +52,7 @@ app.use((req, res, next) => {
     process.exit(1);
   }
 
-  const server = await registerRoutes(app);
+  const server = (await registerRoutes(app)) as Server;
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err?.status || err?.statusCode || 500;
@@ -78,8 +80,46 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
-  server.listen(port, () => {
-    log(`serving on port ${port}`);
-  });
+  const startServer = async (port: number) => {
+    return new Promise<void>((resolve, reject) => {
+      server.listen(port, () => {
+        log(`serving on port ${port}`);
+        resolve();
+      });
+
+      server.on('error', (err: any) => {
+        if (err.code === 'EADDRINUSE') {
+          log(`Port ${port} is in use, trying port ${port + 1}...`);
+          server.close();
+          startServer(port + 1).then(resolve).catch(reject);
+        } else {
+          reject(err);
+        }
+      });
+    });
+  };
+
+  const port = parseInt(process.env.PORT || '10000', 10);
+  
+  try {
+    await startServer(port);
+    
+    // Auto-open browser in development for convenience
+    if (app.get("env") === "development") {
+      const url = `http://localhost:${port}/`;
+      const platform = process.platform;
+      try {
+        if (platform === 'win32') {
+          exec(`start "" "${url}"`);
+        } else if (platform === 'darwin') {
+          exec(`open "${url}"`);
+        } else {
+          exec(`xdg-open "${url}"`);
+        }
+      } catch {}
+    }
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
 })();

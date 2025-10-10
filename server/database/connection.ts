@@ -38,12 +38,10 @@ export const connectToDatabase = async (): Promise<void> => {
         minPoolSize: 0, // Allow connection to close when idle
         maxIdleTimeMS: 5000, // Close connections after 5 seconds of inactivity
         bufferCommands: false, // Disable mongoose buffering for serverless
-        bufferMaxEntries: 0, // Disable mongoose buffering
         retryWrites: true,
         retryReads: true,
         // Additional serverless optimizations
         heartbeatFrequencyMS: 10000,
-        serverSelectionRetryDelayMS: 1000,
       });
       
       isConnected = true;

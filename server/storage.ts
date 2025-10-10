@@ -29,6 +29,11 @@ export interface IStorage {
   
   // Point transaction methods
   getPointTransactions(studentId?: string): Promise<PointTransaction[]>;
+
+  // Attendance methods
+  getAttendanceForDate(date: string, adminId?: string): Promise<Attendance[]>;
+  getAttendanceForStudent(studentId: string): Promise<Attendance[]>;
+  upsertAttendance(records: InsertAttendanceRecord[]): Promise<Attendance[]>;
 }
 
 // Export the interface for use in other files

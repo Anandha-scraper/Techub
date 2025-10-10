@@ -6,6 +6,7 @@ import { StudentUser as StudentUserModel } from "./models/StudentUser";
 import { Student as StudentModel } from "./models/Student";
 import { Feedback as FeedbackModel } from "./models/Feedback";
 import { PointTransaction as PointTransactionModel } from "./models/PointTransaction";
+import { Attendance as AttendanceModel } from "./models/Attendance";
 // @ts-ignore - using multer without types; see server/types/multer.d.ts
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -591,6 +592,137 @@ export async function registerRoutes(app: Express, shouldCreateServer: boolean =
       res.json(transactions);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch transactions" });
+    }
+  });
+
+  // Attendance routes
+  // Get attendance for a date (scoped by admin when provided)
+  app.get('/api/attendance', async (req: Request, res: Response) => {
+    try {
+      const date = String(req.query.date || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: 'Valid date (YYYY-MM-DD) is required' });
+      }
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim() || undefined;
+      const rows = await storage.getAttendanceForDate(date, adminId);
+      res.json(rows);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch attendance' });
+    }
+  });
+
+  // Get attendance for a student (date-wise history)
+  app.get('/api/attendance/student/:studentId', async (req: Request, res: Response) => {
+    try {
+      const studentId = String(req.params.studentId || '').trim();
+      if (!studentId) return res.status(400).json({ message: 'studentId required' });
+      const rows = await storage.getAttendanceForStudent(studentId);
+      res.json(rows);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch attendance' });
+    }
+  });
+
+  // Upsert attendance for multiple students for a date
+  app.post('/api/attendance', async (req: Request, res: Response) => {
+    try {
+      const { date, items } = req.body as { date?: string; items?: Array<{ studentId: string; status: 'present' | 'absent' }> };
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim() || undefined;
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        return res.status(400).json({ message: 'Valid date (YYYY-MM-DD) is required' });
+      }
+      if (!Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ message: 'items must be a non-empty array' });
+      }
+      const payload = items.map(it => ({ studentId: String(it.studentId).toUpperCase(), status: it.status, date, adminId }));
+      const saved = await storage.upsertAttendance(payload);
+      res.json({ success: true, count: saved.length });
+    } catch (error: any) {
+      if (error?.code === 11000) {
+        return res.status(409).json({ message: 'Duplicate attendance for this date' });
+      }
+      res.status(500).json({ message: 'Failed to save attendance' });
+    }
+  });
+
+  // Attendance summary per date for current admin
+  app.get('/api/attendance/summary', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) {
+        return res.status(401).json({ message: 'Admin ID required' });
+      }
+      // Also include legacy rows that may not have adminId but belong to this admin's students
+      const adminStudents = await StudentModel.find({ createdBy: adminId }).select('studentId').lean();
+      const adminStudentIds = adminStudents.map(s => s.studentId);
+
+      const summary = await AttendanceModel.aggregate([
+        { $match: { $or: [ { adminId }, { $and: [ { $or: [ { adminId: { $exists: false } }, { adminId: '' } ] }, { studentId: { $in: adminStudentIds } } ] } ] } },
+        { $group: { _id: '$date', present: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } }, absent: { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } } } },
+        { $project: { _id: 0, date: '$_id', present: 1, absent: 1, total: { $add: ['$present', '$absent'] } } },
+        { $sort: { date: -1 } },
+        { $limit: 60 }
+      ]);
+      res.json(summary);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch attendance summary' });
+    }
+  });
+
+  // Delete all attendance records for a given date (scoped to admin)
+  app.delete('/api/attendance/by-date/:date', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) return res.status(401).json({ message: 'Admin ID required' });
+      const dateParam = String(req.params.date || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+        return res.status(400).json({ message: 'Valid date (YYYY-MM-DD) is required' });
+      }
+      // Determine the studentIds owned by this admin for legacy rows
+      const students = await StudentModel.find({ createdBy: adminId }).select('studentId').lean();
+      const ids = students.map(s => s.studentId);
+      const result = await AttendanceModel.deleteMany({
+        date: dateParam,
+        $or: [ { adminId }, { $and: [ { $or: [ { adminId: { $exists: false } }, { adminId: '' } ] }, { studentId: { $in: ids } } ] } ]
+      });
+      res.json({ success: true, deletedCount: result?.deletedCount || 0 });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to delete attendance for date' });
+    }
+  });
+
+  // Export attendance rows (studentId, name, date, status) for selected dates or all
+  app.get('/api/attendance/export', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) return res.status(401).json({ message: 'Admin ID required' });
+      const datesParam = String(req.query.dates || '').trim();
+      let dateFilter: any = {};
+      if (datesParam && datesParam.toLowerCase() !== 'all') {
+        const dates = datesParam.split(',').map(s => s.trim()).filter(s => /^\d{4}-\d{2}-\d{2}$/.test(s));
+        if (dates.length === 0) return res.status(400).json({ message: 'Invalid dates' });
+        dateFilter = { date: { $in: dates } };
+      }
+
+      const adminStudents = await StudentModel.find({ createdBy: adminId }).select('studentId name').lean();
+      const adminStudentIds = adminStudents.map(s => s.studentId);
+      const idToName = new Map<string, string>();
+      adminStudents.forEach(s => idToName.set(s.studentId, s.name));
+
+      const rows = await AttendanceModel.find({
+        ...dateFilter,
+        $or: [ { adminId }, { $and: [ { $or: [ { adminId: { $exists: false } }, { adminId: '' } ] }, { studentId: { $in: adminStudentIds } } ] } ]
+      }).sort({ date: 1, studentId: 1 }).lean();
+
+      const data = rows.map(r => ({
+        studentId: r.studentId,
+        name: idToName.get(r.studentId) || '',
+        date: r.date,
+        status: r.status,
+      }));
+      res.json({ rows: data });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to export attendance' });
     }
   });
 

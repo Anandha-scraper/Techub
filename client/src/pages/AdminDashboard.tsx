@@ -5,14 +5,19 @@ import StudentTable from "@/components/StudentTable";
 import ExcelUpload from "@/components/ExcelUpload";
 import FeedbackList from "@/components/FeedbackList";
 import { Button } from "@/components/ui/button";
-import { LogOut, Users, Upload, MessageSquare, Settings } from "lucide-react";
+import { LogOut, Users, Upload, MessageSquare, Settings, CalendarDays, Check, X } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useLocation } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
   
   type Student = { id: string; name: string; studentId: string; points: number; section?: string; batch?: string };
   type Feedback = {
@@ -46,6 +51,15 @@ export default function AdminDashboard() {
   const [createdOpen, setCreatedOpen] = useState(false);
   const [createdStudentId, setCreatedStudentId] = useState<string | null>(null);
   const [createdPassword, setCreatedPassword] = useState<string | null>(null);
+  // Attendance state
+  const toIso = (d: Date) => d.toISOString().slice(0,10);
+  const toDisplay = (iso: string) => { const [y,m,dd] = iso.split('-'); return `${dd}/${m}/${y}`; };
+  const [attDate, setAttDate] = useState<string>(() => toIso(new Date()));
+  const [attStatuses, setAttStatuses] = useState<Record<string, 'present' | 'absent'>>({});
+  const [attExistingCount, setAttExistingCount] = useState<number>(0);
+  const [attLocked, setAttLocked] = useState<boolean>(false);
+  const [attSummary, setAttSummary] = useState<Array<{ date: string; present: number; absent: number; total: number }>>([]);
+  const [attSaving, setAttSaving] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -84,6 +98,42 @@ export default function AdminDashboard() {
       isMounted = false;
     };
   }, []);
+
+  // Load attendance for selected date
+  useEffect(() => {
+    const loadAttendance = async () => {
+      try {
+        const res = await fetch(`/api/attendance?date=${encodeURIComponent(attDate)}`, { headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
+        if (!res.ok) return;
+        const rows: Array<{ studentId: string; status: 'present' | 'absent' }> = await res.json();
+        const map: Record<string, 'present' | 'absent'> = {};
+        for (const r of rows) { map[r.studentId] = r.status; }
+        setAttStatuses(map);
+        setAttExistingCount(rows.length);
+      } catch {}
+    };
+    loadAttendance();
+  }, [attDate]);
+
+  // Load summary list
+  const loadSummary = async () => {
+    try {
+      const res = await fetch('/api/attendance/summary', { headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
+      if (!res.ok) return;
+      const rows: Array<{ date: string; present: number; absent: number; total: number }> = await res.json();
+      setAttSummary(rows);
+    } catch {}
+  };
+  useEffect(() => { loadSummary(); }, [attLocked, attDate]);
+
+  // Lock attendance once all students have entries for the selected date
+  useEffect(() => {
+    if (students.length > 0) {
+      setAttLocked(attExistingCount >= students.length);
+    } else {
+      setAttLocked(false);
+    }
+  }, [attExistingCount, students.length]);
 
   const handleLogout = () => {
     localStorage.removeItem('userRole');
@@ -282,6 +332,10 @@ export default function AdminDashboard() {
               <MessageSquare className="w-4 h-4 mr-2" />
               Feedback
             </TabsTrigger>
+            <TabsTrigger value="attendance" data-testid="tab-attendance">
+              <CalendarDays className="w-4 h-4 mr-2" />
+              Attendance
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="students">
@@ -309,6 +363,175 @@ export default function AdminDashboard() {
               onDelete={handleDeleteFeedback}
               showDeleteButton={true}
             />
+          </TabsContent>
+
+          <TabsContent value="attendance" className="space-y-4">
+            <div className="flex items-center gap-3">
+              <label className="text-sm">Date</label>
+              <input className="border rounded px-2 py-1 bg-background" type="date" value={attDate} onChange={(e) => setAttDate(e.target.value)} />
+              <div className="text-xs text-muted-foreground">Mark each student as present or absent, then Save.</div>
+              <div className="ml-auto text-xs text-muted-foreground">
+                {attLocked ? 'Already marked for this date' : `${Object.keys(attStatuses).length}/${students.length} marked`}
+              </div>
+            </div>
+            <div className="border rounded">
+              <div className="grid grid-cols-5 gap-2 p-2 text-xs text-muted-foreground border-b">
+                <div className="col-span-2">Name</div>
+                <div>Register No.</div>
+                <div className="text-center">Present</div>
+                <div className="text-center">Absent</div>
+              </div>
+              <div className="divide-y">
+                {students.map(s => {
+                  const status = attStatuses[s.studentId];
+                  return (
+                    <div key={s.studentId} className="grid grid-cols-5 gap-2 p-2 items-center">
+                      <div className="col-span-2 truncate" title={s.name}>{s.name}</div>
+                      <div className="font-mono text-sm">{s.studentId}</div>
+                      <div className="flex items-center justify-center">
+                        <Button size="sm" disabled={attLocked} variant={status === 'present' ? 'default' : 'outline'} onClick={() => setAttStatuses(prev => ({ ...prev, [s.studentId]: 'present' }))}>
+                          <Check className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <Button size="sm" disabled={attLocked} variant={status === 'absent' ? 'destructive' : 'outline'} onClick={() => setAttStatuses(prev => ({ ...prev, [s.studentId]: 'absent' }))}>
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+                {students.length === 0 && (
+                  <div className="p-3 text-sm text-muted-foreground">No students to display.</div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end">
+              {/** Require every student to be marked before enabling save */}
+              <Button disabled={attLocked || attSaving || students.length === 0 || !students.every(s => attStatuses[s.studentId])} onClick={async () => {
+                setAttSaving(true);
+                try {
+                  // One entry per student for this date
+                  const items = students.map(s => ({ studentId: s.studentId, status: attStatuses[s.studentId] as 'present' | 'absent' }));
+                  if (!items.every(it => it.status === 'present' || it.status === 'absent')) {
+                    setError('Please mark all students before saving');
+                    return;
+                  }
+                  const res = await fetch('/api/attendance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'x-admin-id': localStorage.getItem('userId') || '' },
+                    body: JSON.stringify({ date: attDate, items })
+                  });
+                  if (!res.ok) {
+                    const t = await res.text();
+                    try { const j = JSON.parse(t); throw new Error(j?.message || 'Failed to save attendance'); } catch { throw new Error(t || 'Failed to save attendance'); }
+                  }
+                  // Reload saved statuses from server to reflect persisted state
+                  try {
+                    const r2 = await fetch(`/api/attendance?date=${encodeURIComponent(attDate)}`, { headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
+                    if (r2.ok) {
+                      const rows: Array<{ studentId: string; status: 'present' | 'absent' }> = await r2.json();
+                      const map: Record<string, 'present' | 'absent'> = {};
+                      for (const r of rows) { map[r.studentId] = r.status; }
+                      // Keep saved selections and lock to show read-only recorded state
+                      setAttStatuses(map);
+                      setAttExistingCount(rows.length);
+                      setAttLocked(true);
+                      loadSummary();
+                      toast({ title: 'Attendance marked', description: `Saved ${rows.length} records for ${attDate}` });
+                    }
+                  } catch {}
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : 'Failed to save attendance');
+                } finally {
+                  setAttSaving(false);
+                }
+              }}>{attSaving ? 'Saving…' : 'Save Attendance'}</Button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>Attendance Records</CardTitle>
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      // Prompt dates selection via simple prompt: "all" or CSV of YYYY-MM-DD
+                      const suggestion = attSummary.slice(0,10).map(r => r.date).join(',');
+                      const input = prompt('Enter dates as YYYY-MM-DD comma-separated, or type ALL', suggestion || 'ALL');
+                      if (input === null) return;
+                      const dates = (input || '').trim().toLowerCase() === 'all' ? 'all' : (input || '').split(',').map(s => s.trim()).filter(Boolean).join(',');
+                      try {
+                        const res = await fetch(`/api/attendance/export?dates=${encodeURIComponent(dates)}`, { headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
+                        if (!res.ok) throw new Error('Failed to fetch export data');
+                        const j = await res.json();
+                        const rows: Array<{ studentId: string; name: string; date: string; status: 'present' | 'absent' }> = j?.rows || [];
+                        // Generate PDF using static imports
+                        const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+                        doc.setFontSize(14);
+                        doc.text('Attendance Report', 40, 40);
+                        const tableBody = rows.map(r => [r.studentId, r.name, toDisplay(r.date), r.status.toUpperCase()]);
+                        autoTable(doc, { startY: 60, head: [["Register No.", "Name", "Date", "Status"]], body: tableBody, styles: { fontSize: 10 }, headStyles: { fillColor: [33, 33, 33] } });
+                        doc.save('attendance.pdf');
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : 'Failed to generate PDF');
+                      }
+                    }}>Download PDF</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xs text-muted-foreground mb-2">Recent dates with present/absent counts</div>
+                  <div className="border rounded">
+                    <div className="grid grid-cols-4 gap-2 p-2 text-xs text-muted-foreground border-b">
+                      <div>Date</div>
+                      <div className="text-center">Present</div>
+                      <div className="text-center">Absent</div>
+                      <div className="text-center">Actions</div>
+                    </div>
+                    <div className="divide-y">
+                      {attSummary.map((r) => (
+                        <div key={r.date} className="grid grid-cols-4 gap-2 p-2 text-sm items-center">
+                          <div>{toDisplay(r.date)}</div>
+                          <div className="text-center text-green-600">{r.present}</div>
+                          <div className="text-center text-red-600">{r.absent}</div>
+                          <div className="text-center">
+                            <Button size="sm" variant="outline" className="hover:bg-red-600 hover:text-white hover:border-red-600" onClick={async () => {
+                              if (!confirm(`Delete attendance for ${toDisplay(r.date)}?`)) return;
+                              try {
+                                const del = await fetch(`/api/attendance/by-date/${encodeURIComponent(r.date)}`, { method: 'DELETE', headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
+                                if (!del.ok) throw new Error('Failed to delete');
+                                await loadSummary();
+                                // Refresh current date attendance from server to reflect true DB state
+                                if (attDate === r.date) {
+                                  try {
+                                    const res = await fetch(`/api/attendance?date=${encodeURIComponent(attDate)}`, { headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
+                                    const rows: Array<{ studentId: string; status: 'present' | 'absent' }> = res.ok ? await res.json() : [];
+                                    const map: Record<string, 'present' | 'absent'> = {};
+                                    for (const rr of rows) { map[rr.studentId] = rr.status; }
+                                    setAttStatuses(map);
+                                    setAttExistingCount(rows.length);
+                                    setAttLocked(rows.length >= students.length);
+                                  } catch {
+                                    setAttStatuses({});
+                                    setAttExistingCount(0);
+                                    setAttLocked(false);
+                                  }
+                                }
+                                toast({ title: 'Attendance deleted', description: `Removed records for ${toDisplay(r.date)}` });
+                              } catch (e) {
+                                setError(e instanceof Error ? e.message : 'Failed to delete attendance');
+                              }
+                            }}>Delete</Button>
+                          </div>
+                        </div>
+                      ))}
+                      {attSummary.length === 0 && (
+                        <div className="p-3 text-sm text-muted-foreground">No attendance records yet.</div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
       </main>

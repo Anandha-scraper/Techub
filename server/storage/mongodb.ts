@@ -6,7 +6,9 @@ import {
   type Feedback, 
   type InsertFeedback, 
   type PointTransaction,
-  type UpdatePoints 
+  type UpdatePoints,
+  type AttendanceRecord,
+  type InsertAttendanceRecord
 } from "@shared/types";
 import { IStorage } from "../storage";
 import { User as UserModel, IUser } from "../models/User";
@@ -14,6 +16,7 @@ import { Student as StudentModel, IStudent } from "../models/Student";
 import { AdminUser as AdminUserModel } from "../models/AdminUser";
 import { Feedback as FeedbackModel, IFeedback } from "../models/Feedback";
 import { PointTransaction as PointTransactionModel, IPointTransaction } from "../models/PointTransaction";
+import { Attendance as AttendanceModel, IAttendance } from "../models/Attendance";
 
 export class MongoStorage implements IStorage {
   // User methods
@@ -295,5 +298,38 @@ export class MongoStorage implements IStorage {
       console.error('Error getting point transactions:', error);
       throw error;
     }
+  }
+
+  // Attendance methods
+  async getAttendanceForDate(date: string, adminId?: string): Promise<AttendanceRecord[]> {
+    let rows: any[] = [];
+    if (adminId) {
+      // Include rows with matching adminId OR legacy rows for students under this admin
+      const adminStudents = await StudentModel.find({ createdBy: adminId }).select('studentId').lean();
+      const adminStudentIds = adminStudents.map(s => s.studentId);
+      rows = await AttendanceModel.find({ date, $or: [ { adminId }, { $and: [ { $or: [ { adminId: { $exists: false } }, { adminId: '' } ] }, { studentId: { $in: adminStudentIds } } ] } ] }).sort({ studentId: 1 }).lean();
+    } else {
+      rows = await AttendanceModel.find({ date }).sort({ studentId: 1 }).lean();
+    }
+    return rows.map(r => ({ id: r._id.toString(), studentId: r.studentId, date: r.date, status: r.status, adminId: (r as any).adminId }));
+  }
+
+  async getAttendanceForStudent(studentId: string): Promise<AttendanceRecord[]> {
+    const rows = await AttendanceModel.find({ studentId: String(studentId).toUpperCase() }).sort({ date: -1 }).lean();
+    return rows.map(r => ({ id: r._id.toString(), studentId: r.studentId, date: r.date, status: r.status, adminId: (r as any).adminId }));
+  }
+
+  async upsertAttendance(records: InsertAttendanceRecord[]): Promise<AttendanceRecord[]> {
+    const results: AttendanceRecord[] = [];
+    for (const rec of records) {
+      const studentIdUpper = String(rec.studentId).toUpperCase();
+      const doc = await AttendanceModel.findOneAndUpdate(
+        { studentId: studentIdUpper, date: rec.date, adminId: rec.adminId },
+        { $set: { status: rec.status, adminId: rec.adminId } },
+        { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
+      ).lean();
+      results.push({ id: doc!._id.toString(), studentId: doc!.studentId, date: doc!.date, status: doc!.status, adminId: (doc as any).adminId });
+    }
+    return results;
   }
 }

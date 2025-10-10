@@ -10,6 +10,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { useLocation } from "wouter";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MessageSquare, BarChart3 } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 
 export default function StudentPortal() {
   const [, setLocation] = useLocation();
@@ -17,6 +18,7 @@ export default function StudentPortal() {
   
   const [studentData, setStudentData] = useState<{ name: string; studentId: string; points: number; maxPoints?: number; history: Array<{ date: string; points: number; reason: string }> }>({ name: '', studentId: '', points: 0, maxPoints: 1000, history: [] });
   const [feedbacks, setFeedbacks] = useState<Array<{ id: string; studentName: string; studentId: string; category: string; message: string; date: string; status: 'new' | 'reviewed'; read: boolean }>>([]);
+  const [attendance, setAttendance] = useState<Array<{ date: string; status: 'present' | 'absent' }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -71,6 +73,15 @@ export default function StudentPortal() {
         let fJson: any[] = [];
         try { fJson = await readJsonSafe(fRes); } catch { fJson = []; }
         setFeedbacks(Array.isArray(fJson) ? fJson : []);
+
+        // Fetch attendance history
+        try {
+          const aRes = await fetch(`/api/attendance/student/${encodeURIComponent(username.toUpperCase())}`, { headers: { 'Accept': 'application/json' } });
+          let aJson: any[] = [];
+          try { aJson = await readJsonSafe(aRes); } catch { aJson = []; }
+          const rows = Array.isArray(aJson) ? aJson.map(r => ({ date: r.date, status: r.status })) : [];
+          setAttendance(rows);
+        } catch {}
       } catch (e: any) {
         const msg: string = typeof e?.message === 'string' ? e.message : 'Failed to load data';
         setError(msg.includes('<!DOCTYPE') ? 'Failed to reach API. Is the server running?' : msg);
@@ -153,6 +164,10 @@ export default function StudentPortal() {
                 <MessageSquare className="w-4 h-4 mr-2" />
                 Feedback
               </TabsTrigger>
+              <TabsTrigger value="attendance">
+                <CalendarDays className="w-4 h-4 mr-2" />
+                Attendance
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="dashboard">
@@ -168,6 +183,27 @@ export default function StudentPortal() {
             <TabsContent value="feedback" className="space-y-6">
               <FeedbackForm onSubmit={handleFeedbackSubmit} />
               <StudentFeedbackList feedbacks={feedbacks} />
+            </TabsContent>
+
+            <TabsContent value="attendance" className="space-y-3">
+              <div className="text-sm text-muted-foreground">Your attendance by date</div>
+              <div className="border rounded">
+                <div className="grid grid-cols-2 gap-2 p-2 text-xs text-muted-foreground border-b">
+                  <div>Date</div>
+                  <div>Status</div>
+                </div>
+                <div className="divide-y">
+                  {attendance.map((r, idx) => (
+                    <div key={idx} className="grid grid-cols-2 gap-2 p-2 text-sm">
+                      <div>{r.date}</div>
+                      <div className={r.status === 'present' ? 'text-green-600' : 'text-red-600'}>{r.status}</div>
+                    </div>
+                  ))}
+                  {attendance.length === 0 && (
+                    <div className="p-3 text-sm text-muted-foreground">No attendance records yet.</div>
+                  )}
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
 

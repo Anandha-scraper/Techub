@@ -1,10 +1,17 @@
 import LoginForm from "@/components/LoginForm";
 import { useLocation } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function Login() {
   const [, setLocation] = useLocation();
   const [error, setError] = useState<string | null>(null);
+
+  // Always show login screen fresh: clear any prior session
+  useEffect(() => {
+    localStorage.removeItem('userRole');
+    localStorage.removeItem('username');
+    localStorage.removeItem('userId');
+  }, []);
 
   const handleLogin = async (username: string, password: string, role: 'admin' | 'student' | 'master') => {
     try {
@@ -31,13 +38,9 @@ export default function Login() {
         localStorage.setItem('username', normalizedUsername);
         localStorage.setItem('userId', data.user.id);
         
-        if (normalizedRole === 'admin') {
-          setLocation('/admin');
-        } else if (normalizedRole === 'master') {
-          setLocation('/admin');
-        } else {
-          setLocation('/student');
-        }
+        if (normalizedRole === 'admin') setLocation('/admin');
+        else if (normalizedRole === 'master') setLocation('/master-dashboard');
+        else setLocation('/student');
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Login failed');

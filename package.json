@@ -59,12 +59,12 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "^1.0.7",
+    "@tailwindcss/typography": "^0.5.19",
     "vite": "^5.4.20",
     "wouter": "^3.7.1",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@tailwindcss/typography": "^0.5.19",
     "@types/express": "^5.0.3",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.1",

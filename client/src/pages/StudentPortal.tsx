@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Loader from "@/components/Loader";
 import StudentDashboard from "@/components/StudentDashboard";
 import FeedbackForm from "@/components/FeedbackForm";
 import StudentFeedbackList from "@/components/StudentFeedbackList";
@@ -151,7 +152,11 @@ export default function StudentPortal() {
           <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-md text-sm text-destructive">{error}</div>
         )}
         {loading && (
-          <div className="text-sm text-muted-foreground">Loading…</div>
+          <div className="text-sm text-muted-foreground">
+            <div className="flex items-center justify-center py-12">
+              <Loader />
+            </div>
+          </div>
         )}
         <div className="max-w-4xl mx-auto space-y-6">
           <Tabs defaultValue="dashboard" className="space-y-4">

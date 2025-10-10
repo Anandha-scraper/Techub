@@ -5,7 +5,9 @@ import StudentTable from "@/components/StudentTable";
 import ExcelUpload from "@/components/ExcelUpload";
 import FeedbackList from "@/components/FeedbackList";
 import { Button } from "@/components/ui/button";
+import Loader from "@/components/Loader";
 import { LogOut, Users, Upload, MessageSquare, Settings, CalendarDays, Check, X } from "lucide-react";
+import { Loader2, RotateCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -14,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import SpinWheel from "@/components/SpinWheel";
 
 export default function AdminDashboard() {
   const [, setLocation] = useLocation();
@@ -309,7 +312,9 @@ export default function AdminDashboard() {
           <div className="text-sm text-red-600" role="alert">{error}</div>
         )}
         {loading && (
-          <div className="text-sm text-muted-foreground">Loading…</div>
+          <div className="flex items-center justify-center py-12">
+            <Loader />
+          </div>
         )}
         <AdminStats
           totalStudents={totalStudents}
@@ -335,6 +340,10 @@ export default function AdminDashboard() {
             <TabsTrigger value="attendance" data-testid="tab-attendance">
               <CalendarDays className="w-4 h-4 mr-2" />
               Attendance
+            </TabsTrigger>
+            <TabsTrigger value="spin" data-testid="tab-spin">
+              <RotateCw className="w-4 h-4 mr-2" />
+              Spin Wheel
             </TabsTrigger>
           </TabsList>
 
@@ -532,6 +541,10 @@ export default function AdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="spin">
+            <SpinWheel />
           </TabsContent>
         </Tabs>
       </main>

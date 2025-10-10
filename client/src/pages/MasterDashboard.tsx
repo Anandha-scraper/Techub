@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import Loader from "@/components/Loader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -106,6 +107,11 @@ export default function MasterDashboard() {
           </div>
         </CardHeader>
         <CardContent>
+          {loading && admins.length === 0 && (
+            <div className="flex items-center justify-center py-12">
+              <Loader />
+            </div>
+          )}
           {error && <div className="mb-4 text-sm text-destructive">{error}</div>}
           <div className="flex items-center gap-2 mb-4">
             <Button variant="outline" onClick={fetchAdmins} disabled={loading}>{loading ? 'Refreshing…' : 'Refresh'}</Button>

@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import Loader from "@/components/Loader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, FileSpreadsheet, X, CheckCircle2 } from "lucide-react";
@@ -24,6 +25,7 @@ export default function ExcelUpload({ onUploaded }: ExcelUploadProps) {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewRows, setPreviewRows] = useState<ParsedStudent[] | null>(null);
+  const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const downloadTemplate = () => {
@@ -117,6 +119,7 @@ export default function ExcelUpload({ onUploaded }: ExcelUploadProps) {
   const handleUpload = async () => {
     if (!previewRows || previewRows.length === 0) return;
     try {
+      setUploading(true);
       const res = await fetch('/api/upload/confirm', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'x-admin-id': localStorage.getItem('userId') || '' },
@@ -148,6 +151,8 @@ export default function ExcelUpload({ onUploaded }: ExcelUploadProps) {
     } catch (e) {
       console.error(e);
       setError(e instanceof Error ? e.message : 'Upload failed');
+    } finally {
+      setUploading(false);
     }
   };
 
@@ -270,20 +275,26 @@ export default function ExcelUpload({ onUploaded }: ExcelUploadProps) {
                   </table>
                 </div>
               )}
-              {uploadSuccess && (
+              {uploading && (
+                <div className="flex items-center justify-center py-6">
+                  <Loader />
+                </div>
+              )}
+              {uploadSuccess && !uploading && (
                 <div className="flex items-center justify-center gap-2 text-chart-2">
                   <CheckCircle2 className="w-5 h-5" />
                   <span className="text-sm font-medium">Upload successful!</span>
                 </div>
               )}
               <div className="flex gap-2 justify-center">
-                <Button onClick={handleUpload} disabled={uploadSuccess || !previewRows || previewRows.length === 0} data-testid="button-upload">
-                  {uploadSuccess ? 'Uploaded' : 'Confirm Upload'}
+                <Button onClick={handleUpload} disabled={uploading || uploadSuccess || !previewRows || previewRows.length === 0} data-testid="button-upload">
+                  {uploading ? 'Uploading…' : (uploadSuccess ? 'Uploaded' : 'Confirm Upload')}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={handleClear}
                   data-testid="button-clear"
+                  disabled={uploading}
                 >
                   <X className="w-4 h-4 mr-2" />
                   Clear

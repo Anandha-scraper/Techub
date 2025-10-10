@@ -7,6 +7,7 @@ import { Student as StudentModel } from "./models/Student";
 import { Feedback as FeedbackModel } from "./models/Feedback";
 import { PointTransaction as PointTransactionModel } from "./models/PointTransaction";
 import { Attendance as AttendanceModel } from "./models/Attendance";
+import { SpunStudent as SpunStudentModel } from "./models/SpunStudent";
 // @ts-ignore - using multer without types; see server/types/multer.d.ts
 import multer from "multer";
 import * as XLSX from "xlsx";
@@ -723,6 +724,124 @@ export async function registerRoutes(app: Express, shouldCreateServer: boolean =
       res.json({ rows: data });
     } catch (error) {
       res.status(500).json({ message: 'Failed to export attendance' });
+    }
+  });
+
+  // Spin wheel routes
+  // Get eligible students (not yet spun) for current admin
+  app.get('/api/spin/eligible', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) return res.status(401).json({ message: 'Admin ID required' });
+      const students = await StudentModel.find({ createdBy: adminId }).select('studentId name').lean();
+      const spun = await SpunStudentModel.find({ adminId }).select('studentId').lean();
+      const spunSet = new Set(spun.map(s => s.studentId));
+      const eligible = students.filter(s => !spunSet.has(s.studentId)).map(s => ({ studentId: s.studentId, name: s.name }));
+      res.json({ eligible });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to load eligible students' });
+    }
+  });
+
+  // Perform a spin and record the winner
+  app.post('/api/spin', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) return res.status(401).json({ message: 'Admin ID required' });
+      const { studentId } = req.body as { studentId?: string };
+
+      if (studentId) {
+        // Directly mark provided student as spun if belongs to admin and not already spun
+        const student = await StudentModel.findOne({ studentId: String(studentId).toUpperCase(), createdBy: adminId }).select('studentId name').lean();
+        if (!student) return res.status(404).json({ message: 'Student not found' });
+        try {
+          const rec = new SpunStudentModel({ studentId: student.studentId, name: student.name, adminId });
+          await rec.save();
+          return res.json({ winner: { studentId: student.studentId, name: student.name } });
+        } catch (e: any) {
+          if (e?.code === 11000) return res.status(409).json({ message: 'Student already spun' });
+          throw e;
+        }
+      }
+
+      // Randomly pick among eligible
+      const students = await StudentModel.find({ createdBy: adminId }).select('studentId name').lean();
+      const spun = await SpunStudentModel.find({ adminId }).select('studentId').lean();
+      const spunSet = new Set(spun.map(s => s.studentId));
+      const eligible = students.filter(s => !spunSet.has(s.studentId));
+      if (eligible.length === 0) return res.status(409).json({ message: 'No eligible students left' });
+      const winner = eligible[Math.floor(Math.random() * eligible.length)];
+      const rec = new SpunStudentModel({ studentId: winner.studentId, name: winner.name, adminId });
+      await rec.save();
+      res.json({ winner });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to spin' });
+    }
+  });
+
+  // Get spin history (winners) for current admin
+  app.get('/api/spin/history', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) return res.status(401).json({ message: 'Admin ID required' });
+      const rows = await SpunStudentModel.find({ adminId }).sort({ createdAt: -1 }).lean();
+      res.json(rows.map(r => ({ studentId: r.studentId, name: r.name, date: r.createdAt.toISOString() })));
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch history' });
+    }
+  });
+
+  // Reset spins (clear winners) for current admin
+  app.delete('/api/spin', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) return res.status(401).json({ message: 'Admin ID required' });
+      const result = await SpunStudentModel.deleteMany({ adminId });
+      res.json({ success: true, deleted: result?.deletedCount || 0 });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to reset spins' });
+    }
+  });
+
+  // Edit spin list: bulk include/exclude students from eligibility
+  app.post('/api/spin/exclusions', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) return res.status(401).json({ message: 'Admin ID required' });
+      const { excludeIds, includeIds } = req.body as { excludeIds?: string[]; includeIds?: string[] };
+      const toExclude = Array.isArray(excludeIds) ? excludeIds.map(s => String(s).toUpperCase()) : [];
+      const toInclude = Array.isArray(includeIds) ? includeIds.map(s => String(s).toUpperCase()) : [];
+
+      // Validate ownership for exclusions
+      if (toExclude.length > 0) {
+        const owned = await StudentModel.find({ createdBy: adminId, studentId: { $in: toExclude } }).select('studentId name').lean();
+        const ownedSet = new Map(owned.map(o => [o.studentId, o.name] as const));
+        const ops = [...ownedSet.entries()].map(([sid, name]) => ({ updateOne: { filter: { adminId, studentId: sid }, update: { $set: { adminId, studentId: sid, name } }, upsert: true } }));
+        if (ops.length > 0) await SpunStudentModel.bulkWrite(ops);
+      }
+
+      // Includes: remove from spun list so they become eligible again
+      if (toInclude.length > 0) {
+        await SpunStudentModel.deleteMany({ adminId, studentId: { $in: toInclude } });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to update exclusions' });
+    }
+  });
+
+  // Undo an entry from history (re-include a previously spun student)
+  app.delete('/api/spin/history/:studentId', async (req: Request, res: Response) => {
+    try {
+      const adminId = String((req.headers['x-admin-id'] as string | undefined) || '').trim();
+      if (!adminId) return res.status(401).json({ message: 'Admin ID required' });
+      const sid = String(req.params.studentId || '').toUpperCase();
+      const result = await SpunStudentModel.findOneAndDelete({ adminId, studentId: sid }).lean();
+      if (!result) return res.status(404).json({ message: 'Not found' });
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to remove from history' });
     }
   });
 

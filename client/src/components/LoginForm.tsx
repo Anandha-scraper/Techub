@@ -11,7 +11,7 @@ import adminBg from "@/images/admin.png";
 import studentBg from "@/images/student.png";
 
 interface LoginFormProps {
-  onLogin: (username: string, password: string, role: 'admin' | 'student') => void;
+  onLogin: (username: string, password: string, role: 'admin' | 'student' | 'master') => void;
   error?: string | null;
 }
 

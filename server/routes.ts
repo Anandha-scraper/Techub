@@ -8,7 +8,6 @@ import { Feedback as FeedbackModel } from "./models/Feedback";
 import { PointTransaction as PointTransactionModel } from "./models/PointTransaction";
 import { Attendance as AttendanceModel } from "./models/Attendance";
 import { SpunStudent as SpunStudentModel } from "./models/SpunStudent";
-// @ts-ignore - using multer without types; see server/types/multer.d.ts
 import multer from "multer";
 import * as XLSX from "xlsx";
 

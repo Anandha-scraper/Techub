@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input as TextInput } from "@/components/ui/input";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Search, Edit2, Save, X, Trash2 } from "lucide-react";
+import { Search, Edit2, Save, X, Trash2, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface Student {
@@ -22,6 +22,7 @@ interface Student {
   points: number;
   section?: string;
   batch?: string;
+  gitLink?: string;
 }
 
 interface StudentTableProps {
@@ -42,6 +43,7 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [selectedStudentForPassword, setSelectedStudentForPassword] = useState<null | Student>(null);
   const [newPassword, setNewPassword] = useState("");
+  const [gitLink, setGitLink] = useState("");
   const [showNewPwd, setShowNewPwd] = useState(false);
   const [passwordSubmitting, setPasswordSubmitting] = useState(false);
   const [passwordError, setPasswordError] = useState<string | null>(null);
@@ -52,9 +54,10 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
   );
 
   const handleEdit = (student: Student) => {
-    // Repurpose edit pencil to change password
+    // Repurpose edit pencil to change password and git link
     setSelectedStudentForPassword(student);
     setNewPassword("");
+    setGitLink(student.gitLink || "");
     setPasswordDialogOpen(true);
   };
 
@@ -110,6 +113,7 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
                 <TableHead>Name</TableHead>
                 <TableHead>Section</TableHead>
                 <TableHead>Batch</TableHead>
+                <TableHead>Git Link</TableHead>
                 <TableHead>Current Points</TableHead>
                 <TableHead>Add Points</TableHead>
                 <TableHead>Minus Points</TableHead>
@@ -119,7 +123,7 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
             <TableBody>
               {filteredStudents.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                     No students found
                   </TableCell>
                 </TableRow>
@@ -132,6 +136,21 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
                     <TableCell data-testid={`text-name-${student.id}`}>{student.name}</TableCell>
                     <TableCell data-testid={`text-section-${student.id}`}>{student.section || '-'}</TableCell>
                     <TableCell data-testid={`text-batch-${student.id}`}>{student.batch || '-'}</TableCell>
+                    <TableCell>
+                      {student.gitLink ? (
+                        <a 
+                          href={student.gitLink} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
+                          title={student.gitLink}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">-</span>
+                      )}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-mono" data-testid={`text-points-${student.id}`}>
                         {student.points}
@@ -160,9 +179,35 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
                           </Button>
                         </div>
                       ) : (
-                        <Button size="sm" variant="ghost" onClick={() => { setEditingId(`add-${student.id}`); setEditPoints(0); }} data-testid={`button-add-${student.id}`}>
-                          Add
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => { 
+                              setEditingId(`add-${student.id}`); 
+                              setEditPoints(5);
+                            }} 
+                            data-testid={`button-add5-${student.id}`}
+                            className="w-10"
+                          >
+                            +5
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => { 
+                              setEditingId(`add-${student.id}`); 
+                              setEditPoints(10);
+                            }} 
+                            data-testid={`button-add10-${student.id}`}
+                            className="w-10"
+                          >
+                            +10
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingId(`add-${student.id}`); setEditPoints(0); }} data-testid={`button-add-${student.id}`}>
+                            Custom
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                     <TableCell>
@@ -188,9 +233,35 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
                           </Button>
                         </div>
                       ) : (
-                        <Button size="sm" variant="ghost" onClick={() => { setEditingId(`minus-${student.id}`); setEditPoints(0); }} data-testid={`button-minus-${student.id}`}>
-                          Minus
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => { 
+                              setEditingId(`minus-${student.id}`); 
+                              setEditPoints(5);
+                            }} 
+                            data-testid={`button-minus5-${student.id}`}
+                            className="w-10"
+                          >
+                            -5
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline" 
+                            onClick={() => { 
+                              setEditingId(`minus-${student.id}`); 
+                              setEditPoints(10);
+                            }} 
+                            data-testid={`button-minus10-${student.id}`}
+                            className="w-10"
+                          >
+                            -10
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingId(`minus-${student.id}`); setEditPoints(0); }} data-testid={`button-minus-${student.id}`}>
+                            Custom
+                          </Button>
+                        </div>
                       )}
                     </TableCell>
                     <TableCell className="text-right">
@@ -274,8 +345,8 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
       <Dialog open={passwordDialogOpen} onOpenChange={setPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Change Student Password</DialogTitle>
-            <DialogDescription>Update the login password for this student.</DialogDescription>
+            <DialogTitle>Edit Student Details</DialogTitle>
+            <DialogDescription>Update the login password and Git link for this student.</DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
             <div className="grid gap-1">
@@ -286,17 +357,30 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
               <span className="text-xs text-muted-foreground">Register Number</span>
               <div className="text-sm font-mono">{selectedStudentForPassword?.studentId || '-'}</div>
             </div>
-            <div className="relative">
+            <div className="space-y-2">
+              <span className="text-xs text-muted-foreground">New Password (optional)</span>
+              <div className="relative">
+                <TextInput
+                  type={showNewPwd ? 'text' : 'password'}
+                  placeholder="New password (min 6 chars)"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  data-testid="input-new-password"
+                />
+                <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 border rounded" onClick={() => setShowNewPwd(v => !v)}>
+                  {showNewPwd ? 'Hide' : 'Show'}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <span className="text-xs text-muted-foreground">Git Link (GitHub/GitLab profile or repository)</span>
               <TextInput
-                type={showNewPwd ? 'text' : 'password'}
-                placeholder="New password (min 6 chars)"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                data-testid="input-new-password"
+                type="text"
+                placeholder="https://github.com/username"
+                value={gitLink}
+                onChange={(e) => setGitLink(e.target.value)}
+                data-testid="input-git-link"
               />
-              <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-xs px-2 py-1 border rounded" onClick={() => setShowNewPwd(v => !v)}>
-                {showNewPwd ? 'Hide' : 'Show'}
-              </button>
             </div>
             {passwordError && (
               <div className="text-sm text-red-600" role="alert">{passwordError}</div>
@@ -305,34 +389,73 @@ export default function StudentTable({ students, onUpdatePoints, onDeleteStudent
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => { setPasswordDialogOpen(false); setSelectedStudentForPassword(null); setNewPassword(""); setPasswordError(null); }}
+              onClick={() => { 
+                setPasswordDialogOpen(false); 
+                setSelectedStudentForPassword(null); 
+                setNewPassword(""); 
+                setGitLink("");
+                setPasswordError(null); 
+              }}
             >
               Cancel
             </Button>
             <Button
-              disabled={passwordSubmitting || newPassword.trim().length < 6 || !selectedStudentForPassword}
+              disabled={passwordSubmitting || !selectedStudentForPassword}
               onClick={async () => {
                 if (!selectedStudentForPassword) return;
                 setPasswordSubmitting(true);
+                setPasswordError(null);
+                
                 try {
-                  const res = await fetch(`/api/students/${encodeURIComponent(selectedStudentForPassword.studentId)}/password`, {
+                  // Update password if provided
+                  if (newPassword.trim().length >= 6) {
+                    const pwdRes = await fetch(`/api/students/${encodeURIComponent(selectedStudentForPassword.studentId)}/password`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ password: newPassword.trim() })
+                    });
+                    if (!pwdRes.ok) {
+                      const text = await pwdRes.text();
+                      try { 
+                        const j = JSON.parse(text); 
+                        setPasswordError(j?.message || 'Failed to update password'); 
+                      } catch { 
+                        setPasswordError(text || 'Failed to update password'); 
+                      }
+                      setPasswordSubmitting(false);
+                      return;
+                    }
+                  }
+                  
+                  // Update git link
+                  const gitRes = await fetch(`/api/students/${encodeURIComponent(selectedStudentForPassword.studentId)}/gitlink`, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ password: newPassword.trim() })
+                    body: JSON.stringify({ gitLink: gitLink.trim() })
                   });
-                  if (!res.ok) {
-                    const text = await res.text();
-                    try { const j = JSON.parse(text); setPasswordError(j?.message || 'Failed to update password'); }
-                    catch { setPasswordError(text || 'Failed to update password'); }
+                  if (!gitRes.ok) {
+                    const text = await gitRes.text();
+                    try { 
+                      const j = JSON.parse(text); 
+                      setPasswordError(j?.message || 'Failed to update git link'); 
+                    } catch { 
+                      setPasswordError(text || 'Failed to update git link'); 
+                    }
+                    setPasswordSubmitting(false);
                     return;
                   }
+                  
                   setPasswordDialogOpen(false);
                   setSelectedStudentForPassword(null);
                   setNewPassword("");
+                  setGitLink("");
                   setPasswordError(null);
+                  
+                  // Optionally refresh the student list to show updated git link
+                  window.location.reload();
                 } catch (e) {
                   console.error(e);
-                  setPasswordError('Failed to update password');
+                  setPasswordError('Failed to update student details');
                 } finally {
                   setPasswordSubmitting(false);
                 }

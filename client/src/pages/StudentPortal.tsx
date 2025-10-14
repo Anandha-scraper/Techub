@@ -17,7 +17,7 @@ export default function StudentPortal() {
   const [, setLocation] = useLocation();
   const [feedbackSubmitted, setFeedbackSubmitted] = useState(false);
   
-  const [studentData, setStudentData] = useState<{ name: string; studentId: string; points: number; maxPoints?: number; history: Array<{ date: string; points: number; reason: string }> }>({ name: '', studentId: '', points: 0, maxPoints: 1000, history: [] });
+  const [studentData, setStudentData] = useState<{ name: string; studentId: string; points: number; maxPoints?: number; gitLink?: string; history: Array<{ date: string; points: number; reason: string }> }>({ name: '', studentId: '', points: 0, maxPoints: 1000, history: [] });
   const [feedbacks, setFeedbacks] = useState<Array<{ id: string; studentName: string; studentId: string; category: string; message: string; date: string; status: 'new' | 'reviewed'; read: boolean }>>([]);
   const [attendance, setAttendance] = useState<Array<{ date: string; status: 'present' | 'absent' }>>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +67,7 @@ export default function StudentPortal() {
         let tJson: any[] = [];
         try { tJson = await readJsonSafe(tRes); } catch { tJson = []; }
         const history = Array.isArray(tJson) ? tJson.map((t: any) => ({ date: t.date, points: t.points, reason: t.reason })) : [];
-        setStudentData({ name: s.name, studentId: s.studentId, points: s.points, maxPoints: 1000, history });
+        setStudentData({ name: s.name, studentId: s.studentId, points: s.points, maxPoints: 1000, gitLink: s.gitLink, history });
         
         // Fetch student feedback
         const fRes = await fetch(`/api/feedback/student/${encodeURIComponent(username.toUpperCase())}`, { headers: { 'Accept': 'application/json' } });
@@ -181,6 +181,7 @@ export default function StudentPortal() {
                 studentId={studentData.studentId}
                 points={studentData.points}
                 maxPoints={studentData.maxPoints}
+                gitLink={studentData.gitLink}
                 history={studentData.history}
               />
             </TabsContent>
@@ -201,7 +202,13 @@ export default function StudentPortal() {
                   {attendance.map((r, idx) => (
                     <div key={idx} className="grid grid-cols-2 gap-2 p-2 text-sm">
                       <div>{r.date}</div>
-                      <div className={r.status === 'present' ? 'text-green-600' : 'text-red-600'}>{r.status}</div>
+                      <div className={
+                        r.status === 'present' ? 'text-green-600 font-medium' : 
+                        r.status === 'on-duty' ? 'text-blue-600 font-medium' : 
+                        'text-red-600 font-medium'
+                      }>
+                        {r.status === 'on-duty' ? 'On Duty' : r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                      </div>
                     </div>
                   ))}
                   {attendance.length === 0 && (

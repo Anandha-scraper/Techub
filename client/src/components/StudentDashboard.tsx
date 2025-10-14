@@ -1,12 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { TrendingUp, Award, Calendar } from "lucide-react";
+import { TrendingUp, Award, Calendar, ExternalLink } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 interface StudentDashboardProps {
   studentName: string;
   studentId: string;
   points: number;
   maxPoints?: number;
+  gitLink?: string;
   history?: Array<{ date: string; points: number; reason: string }>;
 }
 
@@ -15,6 +17,7 @@ export default function StudentDashboard({
   studentId, 
   points,
   maxPoints = 1000,
+  gitLink,
   history = []
 }: StudentDashboardProps) {
   const percentage = (points / maxPoints) * 100;
@@ -25,9 +28,28 @@ export default function StudentDashboard({
         <h1 className="text-3xl font-bold" data-testid="text-welcome">
           Welcome, {studentName}
         </h1>
-        <p className="text-muted-foreground" data-testid="text-studentid">
-          Student ID: <span className="font-mono">{studentId}</span>
-        </p>
+        <div className="flex items-center gap-4 flex-wrap">
+          <p className="text-muted-foreground" data-testid="text-studentid">
+            Student ID: <span className="font-mono">{studentId}</span>
+          </p>
+          {gitLink && (
+            <Button 
+              variant="outline" 
+              size="sm"
+              asChild
+            >
+              <a 
+                href={gitLink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2"
+              >
+                <ExternalLink className="w-4 h-4" />
+                View Git Profile
+              </a>
+            </Button>
+          )}
+        </div>
       </div>
 
       <Card>

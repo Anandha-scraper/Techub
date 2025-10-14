@@ -6,7 +6,7 @@ import ExcelUpload from "@/components/ExcelUpload";
 import FeedbackList from "@/components/FeedbackList";
 import { Button } from "@/components/ui/button";
 import Loader from "@/components/Loader";
-import { LogOut, Users, Upload, MessageSquare, Settings, CalendarDays, Check, X } from "lucide-react";
+import { LogOut, Users, Upload, MessageSquare, Settings, CalendarDays, Check, X, Briefcase } from "lucide-react";
 import { Loader2, RotateCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ export default function AdminDashboard() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   
-  type Student = { id: string; name: string; studentId: string; points: number; section?: string; batch?: string };
+  type Student = { id: string; name: string; studentId: string; points: number; section?: string; batch?: string; gitLink?: string };
   type Feedback = {
     id: string;
     studentName: string;
@@ -58,10 +58,10 @@ export default function AdminDashboard() {
   const toIso = (d: Date) => d.toISOString().slice(0,10);
   const toDisplay = (iso: string) => { const [y,m,dd] = iso.split('-'); return `${dd}/${m}/${y}`; };
   const [attDate, setAttDate] = useState<string>(() => toIso(new Date()));
-  const [attStatuses, setAttStatuses] = useState<Record<string, 'present' | 'absent'>>({});
+  const [attStatuses, setAttStatuses] = useState<Record<string, 'present' | 'absent' | 'on-duty'>>({});
   const [attExistingCount, setAttExistingCount] = useState<number>(0);
   const [attLocked, setAttLocked] = useState<boolean>(false);
-  const [attSummary, setAttSummary] = useState<Array<{ date: string; present: number; absent: number; total: number }>>([]);
+  const [attSummary, setAttSummary] = useState<Array<{ date: string; present: number; absent: number; onDuty: number; total: number }>>([]);
   const [attSaving, setAttSaving] = useState(false);
 
   useEffect(() => {
@@ -278,6 +278,31 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleBulkDeleteFeedback = async (feedbackIds: string[]) => {
+    try {
+      const res = await fetch('/api/feedback/bulk-delete', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'x-admin-id': localStorage.getItem('userId') || ''
+        },
+        body: JSON.stringify({ feedbackIds })
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || 'Failed to delete feedbacks');
+      }
+      
+      // Remove the feedbacks from the local state
+      setFeedbacks(prev => prev.filter(f => !feedbackIds.includes(f.id)));
+      toast({ title: 'Success', description: `Deleted ${feedbackIds.length} feedback(s)` });
+    } catch (e) {
+      console.error(e);
+      setError('Failed to delete feedbacks');
+    }
+  };
+
   const totalStudents = students.length;
   const averagePoints = students.length > 0 ? (students.reduce((sum, s) => sum + s.points, 0) / students.length) : 0;
   const pendingFeedback = feedbacks.filter(f => f.status === 'new').length;
@@ -370,6 +395,7 @@ export default function AdminDashboard() {
               feedbacks={feedbacks} 
               onMarkAsRead={handleMarkAsRead} 
               onDelete={handleDeleteFeedback}
+              onBulkDelete={handleBulkDeleteFeedback}
               showDeleteButton={true}
             />
           </TabsContent>
@@ -378,28 +404,34 @@ export default function AdminDashboard() {
             <div className="flex items-center gap-3">
               <label className="text-sm">Date</label>
               <input className="border rounded px-2 py-1 bg-background" type="date" value={attDate} onChange={(e) => setAttDate(e.target.value)} />
-              <div className="text-xs text-muted-foreground">Mark each student as present or absent, then Save.</div>
+              <div className="text-xs text-muted-foreground">Mark each student as present, on duty, or absent, then Save.</div>
               <div className="ml-auto text-xs text-muted-foreground">
                 {attLocked ? 'Already marked for this date' : `${Object.keys(attStatuses).length}/${students.length} marked`}
               </div>
             </div>
             <div className="border rounded">
-              <div className="grid grid-cols-5 gap-2 p-2 text-xs text-muted-foreground border-b">
+              <div className="grid grid-cols-6 gap-2 p-2 text-xs text-muted-foreground border-b">
                 <div className="col-span-2">Name</div>
                 <div>Register No.</div>
                 <div className="text-center">Present</div>
+                <div className="text-center">On Duty</div>
                 <div className="text-center">Absent</div>
               </div>
               <div className="divide-y">
                 {students.map(s => {
                   const status = attStatuses[s.studentId];
                   return (
-                    <div key={s.studentId} className="grid grid-cols-5 gap-2 p-2 items-center">
+                    <div key={s.studentId} className="grid grid-cols-6 gap-2 p-2 items-center">
                       <div className="col-span-2 truncate" title={s.name}>{s.name}</div>
                       <div className="font-mono text-sm">{s.studentId}</div>
                       <div className="flex items-center justify-center">
                         <Button size="sm" disabled={attLocked} variant={status === 'present' ? 'default' : 'outline'} onClick={() => setAttStatuses(prev => ({ ...prev, [s.studentId]: 'present' }))}>
                           <Check className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <Button size="sm" disabled={attLocked} variant={status === 'on-duty' ? 'secondary' : 'outline'} onClick={() => setAttStatuses(prev => ({ ...prev, [s.studentId]: 'on-duty' }))}>
+                          <Briefcase className="w-4 h-4" />
                         </Button>
                       </div>
                       <div className="flex items-center justify-center">
@@ -421,8 +453,8 @@ export default function AdminDashboard() {
                 setAttSaving(true);
                 try {
                   // One entry per student for this date
-                  const items = students.map(s => ({ studentId: s.studentId, status: attStatuses[s.studentId] as 'present' | 'absent' }));
-                  if (!items.every(it => it.status === 'present' || it.status === 'absent')) {
+                  const items = students.map(s => ({ studentId: s.studentId, status: attStatuses[s.studentId] as 'present' | 'absent' | 'on-duty' }));
+                  if (!items.every(it => it.status === 'present' || it.status === 'absent' || it.status === 'on-duty')) {
                     setError('Please mark all students before saving');
                     return;
                   }
@@ -473,7 +505,7 @@ export default function AdminDashboard() {
                         const res = await fetch(`/api/attendance/export?dates=${encodeURIComponent(dates)}`, { headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
                         if (!res.ok) throw new Error('Failed to fetch export data');
                         const j = await res.json();
-                        const rows: Array<{ studentId: string; name: string; date: string; status: 'present' | 'absent' }> = j?.rows || [];
+                        const rows: Array<{ studentId: string; name: string; date: string; status: 'present' | 'absent' | 'on-duty' }> = j?.rows || [];
                         // Generate PDF using static imports
                         const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
                         doc.setFontSize(14);
@@ -488,19 +520,21 @@ export default function AdminDashboard() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-xs text-muted-foreground mb-2">Recent dates with present/absent counts</div>
+                  <div className="text-xs text-muted-foreground mb-2">Recent dates with attendance counts</div>
                   <div className="border rounded">
-                    <div className="grid grid-cols-4 gap-2 p-2 text-xs text-muted-foreground border-b">
+                    <div className="grid grid-cols-5 gap-2 p-2 text-xs text-muted-foreground border-b">
                       <div>Date</div>
                       <div className="text-center">Present</div>
+                      <div className="text-center">On Duty</div>
                       <div className="text-center">Absent</div>
                       <div className="text-center">Actions</div>
                     </div>
                     <div className="divide-y">
                       {attSummary.map((r) => (
-                        <div key={r.date} className="grid grid-cols-4 gap-2 p-2 text-sm items-center">
+                        <div key={r.date} className="grid grid-cols-5 gap-2 p-2 text-sm items-center">
                           <div>{toDisplay(r.date)}</div>
                           <div className="text-center text-green-600">{r.present}</div>
+                          <div className="text-center text-blue-600">{r.onDuty || 0}</div>
                           <div className="text-center text-red-600">{r.absent}</div>
                           <div className="text-center">
                             <Button size="sm" variant="outline" className="hover:bg-red-600 hover:text-white hover:border-red-600" onClick={async () => {

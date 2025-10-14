@@ -212,6 +212,7 @@ export async function registerRoutes(app: Express, shouldCreateServer: boolean =
           points: doc.points,
           section: doc.section,
           batch: doc.batch,
+          gitLink: doc.gitLink,
           createdAt: doc.createdAt?.toISOString?.() || new Date().toISOString()
         })));
       }
@@ -250,6 +251,7 @@ export async function registerRoutes(app: Express, shouldCreateServer: boolean =
         points: doc.points,
         section: (doc as any).section,
         batch: (doc as any).batch,
+        gitLink: (doc as any).gitLink,
         createdAt: doc.createdAt?.toISOString?.() || new Date().toISOString()
       });
     } catch (error) {
@@ -381,6 +383,48 @@ export async function registerRoutes(app: Express, shouldCreateServer: boolean =
       res.json({ success: true, id: user._id.toString(), username: user.username });
     } catch (error) {
       res.status(500).json({ message: 'Failed to update password' });
+    }
+  });
+
+  // Admin: update student git link by studentId or mongo _id
+  app.patch('/api/students/:id/gitlink', async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { gitLink } = req.body as { gitLink?: string };
+      
+      // Git link is optional, can be empty to clear it
+      const sanitizedGitLink = typeof gitLink === 'string' ? gitLink.trim() : '';
+
+      // Resolve studentId from either direct studentId or _id
+      const idStr = String(id).trim();
+      let studentIdUpper = idStr.toUpperCase();
+      
+      const looksLikeObjectId = /^[a-fA-F0-9]{24}$/.test(idStr);
+      let student;
+      
+      if (looksLikeObjectId) {
+        student = await StudentModel.findById(idStr);
+      } else {
+        student = await StudentModel.findOne({ studentId: studentIdUpper });
+      }
+
+      if (!student) {
+        return res.status(404).json({ message: 'Student not found' });
+      }
+
+      // Update git link
+      student.gitLink = sanitizedGitLink || undefined;
+      await student.save();
+
+      res.json({ 
+        success: true, 
+        id: student._id.toString(), 
+        studentId: student.studentId,
+        gitLink: student.gitLink 
+      });
+    } catch (error) {
+      console.error('Update git link error:', error);
+      res.status(500).json({ message: 'Failed to update git link' });
     }
   });
 
@@ -584,6 +628,69 @@ export async function registerRoutes(app: Express, shouldCreateServer: boolean =
     }
   });
 
+  // Bulk delete feedbacks
+  app.post("/api/feedback/bulk-delete", async (req: Request, res: Response) => {
+    try {
+      const { feedbackIds } = req.body as { feedbackIds: string[] };
+      const adminId = req.headers['x-admin-id'] as string;
+      
+      if (!adminId) {
+        return res.status(401).json({ message: "Admin ID required" });
+      }
+
+      if (!Array.isArray(feedbackIds) || feedbackIds.length === 0) {
+        return res.status(400).json({ message: "Invalid feedback IDs" });
+      }
+
+      // Verify all feedbacks belong to this admin or their students
+      const adminFeedbacks = await storage.getFeedbacks(adminId);
+      const allFeedbacks = await storage.getFeedbacks();
+      
+      const deletableIds: string[] = [];
+      
+      for (const id of feedbackIds) {
+        // Check if feedback is directly owned by admin
+        if (adminFeedbacks.find(f => f.id === id)) {
+          deletableIds.push(id);
+          continue;
+        }
+        
+        // Check if feedback belongs to a student owned by this admin
+        const targetFeedback = allFeedbacks.find(f => f.id === id);
+        if (targetFeedback) {
+          const student = await StudentModel.findOne({ 
+            studentId: targetFeedback.studentId, 
+            createdBy: adminId 
+          }).lean();
+          
+          if (student) {
+            deletableIds.push(id);
+          }
+        }
+      }
+
+      if (deletableIds.length === 0) {
+        return res.status(404).json({ message: "No feedbacks found or access denied" });
+      }
+
+      // Delete all authorized feedbacks
+      let deletedCount = 0;
+      for (const id of deletableIds) {
+        const deleted = await storage.deleteFeedback(id);
+        if (deleted) deletedCount++;
+      }
+
+      res.json({ 
+        message: `Successfully deleted ${deletedCount} feedback(s)`, 
+        deletedCount,
+        requestedCount: feedbackIds.length
+      });
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      res.status(500).json({ message: "Failed to delete feedbacks" });
+    }
+  });
+
   // Point transaction routes
   app.get("/api/transactions", async (req: Request, res: Response) => {
     try {
@@ -658,8 +765,13 @@ export async function registerRoutes(app: Express, shouldCreateServer: boolean =
 
       const summary = await AttendanceModel.aggregate([
         { $match: { $or: [ { adminId }, { $and: [ { $or: [ { adminId: { $exists: false } }, { adminId: '' } ] }, { studentId: { $in: adminStudentIds } } ] } ] } },
-        { $group: { _id: '$date', present: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } }, absent: { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } } } },
-        { $project: { _id: 0, date: '$_id', present: 1, absent: 1, total: { $add: ['$present', '$absent'] } } },
+        { $group: { 
+          _id: '$date', 
+          present: { $sum: { $cond: [{ $eq: ['$status', 'present'] }, 1, 0] } }, 
+          absent: { $sum: { $cond: [{ $eq: ['$status', 'absent'] }, 1, 0] } },
+          onDuty: { $sum: { $cond: [{ $eq: ['$status', 'on-duty'] }, 1, 0] } }
+        } },
+        { $project: { _id: 0, date: '$_id', present: 1, absent: 1, onDuty: 1, total: { $add: ['$present', '$absent', '$onDuty'] } } },
         { $sort: { date: -1 } },
         { $limit: 60 }
       ]);

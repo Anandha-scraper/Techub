@@ -7,6 +7,7 @@ export interface IStudent extends Document {
   points: number;
   section?: string;
   batch?: string;
+  gitLink?: string; // GitHub profile or repository link
   createdBy?: string; // AdminUser _id who created this student
   createdAt: Date;
   updatedAt: Date;
@@ -43,6 +44,12 @@ const StudentSchema = new Schema<IStudent>({
     required: false,
     trim: true,
     maxlength: 20
+  },
+  gitLink: {
+    type: String,
+    required: false,
+    trim: true,
+    maxlength: 200
   },
   createdBy: {
     type: String,

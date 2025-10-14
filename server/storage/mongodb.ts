@@ -82,6 +82,7 @@ export class MongoStorage implements IStorage {
         points: student.points,
         section: (student as any).section,
         batch: (student as any).batch,
+        gitLink: (student as any).gitLink,
         createdAt: student.createdAt.toISOString()
       }));
     } catch (error) {
@@ -102,6 +103,7 @@ export class MongoStorage implements IStorage {
         points: student.points,
         section: (student as any).section,
         batch: (student as any).batch,
+        gitLink: (student as any).gitLink,
         createdAt: student.createdAt.toISOString()
       };
     } catch (error) {
@@ -122,6 +124,7 @@ export class MongoStorage implements IStorage {
         points: newStudent.points,
         section: (newStudent as any).section,
         batch: (newStudent as any).batch,
+        gitLink: (newStudent as any).gitLink,
         createdAt: newStudent.createdAt.toISOString()
       };
     } catch (error) {
@@ -159,6 +162,7 @@ export class MongoStorage implements IStorage {
         points: student.points,
         section: (student as any).section,
         batch: (student as any).batch,
+        gitLink: (student as any).gitLink,
         createdAt: student.createdAt.toISOString()
       };
     } catch (error) {

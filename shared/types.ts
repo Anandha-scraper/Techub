@@ -14,6 +14,7 @@ export interface Student {
   points: number;
   section?: string;
   batch?: string;
+  gitLink?: string;
   createdAt: string;
 }
 
@@ -26,7 +27,7 @@ export interface PointTransaction {
 }
 
 // Attendance
-export type AttendanceStatus = 'present' | 'absent';
+export type AttendanceStatus = 'present' | 'absent' | 'on-duty';
 
 export interface AttendanceRecord {
   id: string;
@@ -67,6 +68,7 @@ export interface InsertStudent {
   points: number;
   section?: string;
   batch?: string;
+  gitLink?: string;
 }
 
 export interface InsertFeedback {

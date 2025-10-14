@@ -9,6 +9,7 @@ import Loader from "@/components/Loader";
 import { LogOut, Users, Upload, MessageSquare, Settings, CalendarDays, Check, X, Briefcase } from "lucide-react";
 import { Loader2, RotateCw } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { useLocation } from "wouter";
@@ -63,6 +64,11 @@ export default function AdminDashboard() {
   const [attLocked, setAttLocked] = useState<boolean>(false);
   const [attSummary, setAttSummary] = useState<Array<{ date: string; present: number; absent: number; onDuty: number; total: number }>>([]);
   const [attSaving, setAttSaving] = useState(false);
+
+  // Export attendance dialog state
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportSelectAll, setExportSelectAll] = useState(true);
+  const [exportSelectedDates, setExportSelectedDates] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     let isMounted = true;
@@ -495,27 +501,12 @@ export default function AdminDashboard() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle>Attendance Records</CardTitle>
-                    <Button size="sm" variant="outline" onClick={async () => {
-                      // Prompt dates selection via simple prompt: "all" or CSV of YYYY-MM-DD
-                      const suggestion = attSummary.slice(0,10).map(r => r.date).join(',');
-                      const input = prompt('Enter dates as YYYY-MM-DD comma-separated, or type ALL', suggestion || 'ALL');
-                      if (input === null) return;
-                      const dates = (input || '').trim().toLowerCase() === 'all' ? 'all' : (input || '').split(',').map(s => s.trim()).filter(Boolean).join(',');
-                      try {
-                        const res = await fetch(`/api/attendance/export?dates=${encodeURIComponent(dates)}`, { headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
-                        if (!res.ok) throw new Error('Failed to fetch export data');
-                        const j = await res.json();
-                        const rows: Array<{ studentId: string; name: string; date: string; status: 'present' | 'absent' | 'on-duty' }> = j?.rows || [];
-                        // Generate PDF using static imports
-                        const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
-                        doc.setFontSize(14);
-                        doc.text('Attendance Report', 40, 40);
-                        const tableBody = rows.map(r => [r.studentId, r.name, toDisplay(r.date), r.status.toUpperCase()]);
-                        autoTable(doc, { startY: 60, head: [["Register No.", "Name", "Date", "Status"]], body: tableBody, styles: { fontSize: 10 }, headStyles: { fillColor: [33, 33, 33] } });
-                        doc.save('attendance.pdf');
-                      } catch (e) {
-                        setError(e instanceof Error ? e.message : 'Failed to generate PDF');
-                      }
+                    <Button size="sm" variant="outline" onClick={() => {
+                      // Prefill selection with the 10 most recent dates
+                      const defaults = new Set(attSummary.slice(0, 10).map(r => r.date));
+                      setExportSelectedDates(defaults);
+                      setExportSelectAll(true);
+                      setExportOpen(true);
                     }}>Download PDF</Button>
                   </div>
                 </CardHeader>
@@ -714,6 +705,70 @@ export default function AdminDashboard() {
           </div>
           <DialogFooter>
             <Button onClick={() => setCreatedOpen(false)}>OK</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Export attendance dialog */}
+      <Dialog open={exportOpen} onOpenChange={setExportOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Attendance</DialogTitle>
+            <DialogDescription>Select dates to include in the PDF or choose Select All.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              <Checkbox id="export-all" checked={exportSelectAll} onCheckedChange={(v) => setExportSelectAll(Boolean(v))} />
+              <label htmlFor="export-all" className="text-sm">Select All Dates</label>
+            </div>
+            {!exportSelectAll && (
+              <div className="max-h-60 overflow-auto border rounded p-2 space-y-2">
+                {attSummary.map(r => (
+                  <div key={r.date} className="flex items-center gap-2">
+                    <Checkbox
+                      checked={exportSelectedDates.has(r.date)}
+                      onCheckedChange={(v) => {
+                        setExportSelectedDates(prev => {
+                          const next = new Set(prev);
+                          if (v) next.add(r.date); else next.delete(r.date);
+                          return next;
+                        });
+                      }}
+                      id={`date-${r.date}`}
+                    />
+                    <label htmlFor={`date-${r.date}`} className="text-sm">{toDisplay(r.date)}</label>
+                  </div>
+                ))}
+                {attSummary.length === 0 && (
+                  <div className="text-xs text-muted-foreground">No dates available.</div>
+                )}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExportOpen(false)}>Cancel</Button>
+            <Button onClick={async () => {
+              try {
+                const selectedCsv = exportSelectAll ? 'all' : Array.from(exportSelectedDates).join(',');
+                const res = await fetch(`/api/attendance/export?dates=${encodeURIComponent(selectedCsv)}`, { headers: { 'x-admin-id': localStorage.getItem('userId') || '' } });
+                if (!res.ok) throw new Error('Failed to fetch export data');
+                const j = await res.json();
+                const rows: Array<{ studentId: string; name: string; date: string; status: 'present' | 'absent' | 'on-duty' }> = j?.rows || [];
+                const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+                doc.setFontSize(14);
+                doc.text('Attendance Report', 40, 40);
+                const tableBody = rows.map(r => [r.studentId, r.name, toDisplay(r.date), r.status.toUpperCase()]);
+                autoTable(doc, { startY: 60, head: [["Register No.", "Name", "Date", "Status"]], body: tableBody, styles: { fontSize: 10 }, headStyles: { fillColor: [33, 33, 33] } });
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                doc.save(`${yyyy}-${mm}-${dd}-attendance.pdf`);
+                setExportOpen(false);
+              } catch (e) {
+                setError(e instanceof Error ? e.message : 'Failed to generate PDF');
+              }
+            }}>Download</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
